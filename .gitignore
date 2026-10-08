@@ -1,0 +1,6 @@
+node_modules/
+vendor/
+.env
+data/*.sqlite3
+.phpunit.result.cache
+.vscode/

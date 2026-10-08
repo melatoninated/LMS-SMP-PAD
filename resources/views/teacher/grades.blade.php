@@ -1,0 +1,3 @@
+<x-layouts.app title="Nilai">
+    <section class="panel overflow-x-auto"><table class="w-full">@foreach($submissions as $submission)<tr><td class="table-cell">{{ $submission->student->user->name }}</td><td class="table-cell">{{ $submission->assessment->title }}</td><td class="table-cell">{{ $submission->score ?? '-' }}</td><td class="table-cell">{{ $submission->status }}</td><td class="table-cell"><form method="post" action="{{ route('teacher.grades.store', $submission) }}">@csrf<input class="input mb-2" name="score" type="number" step="0.01"><input class="input mb-2" name="feedback" placeholder="Feedback"><button class="btn">Nilai</button></form></td></tr>@endforeach</table></section>
+</x-layouts.app>
