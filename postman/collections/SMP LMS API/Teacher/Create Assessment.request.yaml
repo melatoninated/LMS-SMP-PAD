@@ -1,0 +1,19 @@
+$kind: http-request
+description: "Untuk ujian, isi `is_exam: true` dan `duration_minutes` minimal 1."
+url: "{{baseUrl}}/api/teacher/sections/{{sectionId}}/assessments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "title": "Kuis Bilangan",
+      "description": "Kuis awal",
+      "target_grade": 7,
+      "is_exam": false,
+      "duration_minutes": null,
+      "maximum_attempt": 1,
+      "passing_score": 75
+    }
+order: 9000

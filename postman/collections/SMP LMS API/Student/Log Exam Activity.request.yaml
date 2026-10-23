@@ -1,0 +1,14 @@
+$kind: http-request
+description: "Menyimpan aktivitas sesi ujian milik siswa. `event` wajib (maks. 100 karakter); `detail` opsional. Respons sukses: 204."
+url: "{{baseUrl}}/api/student/exam-sessions/{{examSessionId}}/logs"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "event": "fullscreen_exit",
+      "detail": "Siswa keluar dari mode layar penuh"
+    }
+order: 8000

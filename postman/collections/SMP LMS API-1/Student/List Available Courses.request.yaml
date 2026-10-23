@@ -1,0 +1,5 @@
+$kind: http-request
+description: Course aktif serta `expected_grade` siswa.
+url: "{{baseUrl}}/api/student/courses"
+method: GET
+order: 2000

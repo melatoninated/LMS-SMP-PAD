@@ -1,0 +1,5 @@
+$kind: http-request
+description: Course milik guru yang sedang login.
+url: "{{baseUrl}}/api/teacher/courses"
+method: GET
+order: 2000

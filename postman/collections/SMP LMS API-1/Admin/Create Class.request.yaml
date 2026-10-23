@@ -1,0 +1,15 @@
+$kind: http-request
+description: "`name` unik. `grade_level` hanya 7, 8, atau 9."
+url: "{{baseUrl}}/api/admin/classes"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "7 C",
+      "grade_level": 7,
+      "academic_year_id": {{academicYearId}}
+    }
+order: 10000

@@ -1,0 +1,3 @@
+$kind: collection
+description: Memerlukan peran `student`. Akses course, materi, dan assessment disaring berdasarkan tingkat kelas siswa.
+order: 4000

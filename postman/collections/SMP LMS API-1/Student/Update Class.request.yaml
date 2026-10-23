@@ -1,0 +1,13 @@
+$kind: http-request
+description: "`class_room_id` wajib dan harus ada pada data kelas."
+url: "{{baseUrl}}/api/student/profile/class"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "class_room_id": {{classRoomId}}
+    }
+order: 10000

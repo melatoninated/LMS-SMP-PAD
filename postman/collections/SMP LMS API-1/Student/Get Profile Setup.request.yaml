@@ -1,0 +1,5 @@
+$kind: http-request
+description: Kelas yang tersedia pada grade siswa, pertanyaan profiling, serta rekomendasi materi.
+url: "{{baseUrl}}/api/student/profile"
+method: GET
+order: 9000

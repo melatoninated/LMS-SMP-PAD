@@ -1,0 +1,3 @@
+$kind: collection
+description: Memerlukan peran `teacher`. Operasi detail course hanya diizinkan bagi pemilik course.
+order: 3000

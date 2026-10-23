@@ -1,0 +1,16 @@
+$kind: http-request
+description: "`answers` opsional berupa object/array dengan key ID soal. Isi jawaban menyesuaikan jenis soal."
+url: "{{baseUrl}}/api/student/assessments/{{assessmentId}}/submit"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "answers": {
+        "1": "4",
+        "2": "Jawaban essay saya"
+      }
+    }
+order: 7000

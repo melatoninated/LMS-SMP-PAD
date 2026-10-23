@@ -1,0 +1,5 @@
+$kind: http-request
+description: Submission untuk assessment pada course milik guru.
+url: "{{baseUrl}}/api/teacher/submissions"
+method: GET
+order: 11000

@@ -1,0 +1,5 @@
+$kind: http-request
+description: Detail assessment dan soal. Untuk ujian, request ini memulai/mengambil sesi ujian serta `remaining_seconds`.
+url: "{{baseUrl}}/api/student/assessments/{{assessmentId}}"
+method: GET
+order: 6000

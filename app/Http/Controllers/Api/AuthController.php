@@ -12,14 +12,27 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        $data = $request->validate(['username' => ['required'], 'password' => ['required'], 'device_name' => ['nullable', 'string', 'max:100']]);
-        $user = User::where('username', $data['username'])->where('is_active', true)->first();
+        $data = $request->validate([
+            'username' => ['required', 'string', 'max:100'],
+            'password' => ['required', 'string'],
+            'role' => ['required', 'in:admin,student,teacher,parent'],
+            'remember' => ['nullable', 'boolean'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+        ]);
+        $user = User::where('username', $data['username'])
+            ->where('role', $data['role'])
+            ->where('is_active', true)
+            ->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             return response()->json(['message' => 'Username atau password tidak sesuai.'], 422);
         }
 
-        $token = $user->createToken($data['device_name'] ?? 'api-client')->plainTextToken;
+        $token = $user->createToken(
+            $data['device_name'] ?? 'web-client',
+            ['*'],
+            ($data['remember'] ?? false) ? null : now()->addDay()
+        )->plainTextToken;
         AuditLog::create(['user_id' => $user->id, 'event' => 'api_login', 'created_at' => now()]);
 
         return response()->json(['token' => $token, 'token_type' => 'Bearer', 'must_change_password' => $user->must_change_password, 'user' => $this->userData($user)]);

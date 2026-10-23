@@ -1,0 +1,5 @@
+$kind: http-request
+description: Course guru dan total submission yang memerlukan penilaian.
+url: "{{baseUrl}}/api/teacher/dashboard"
+method: GET
+order: 1000

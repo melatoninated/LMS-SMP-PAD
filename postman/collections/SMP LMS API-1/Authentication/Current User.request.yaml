@@ -1,0 +1,5 @@
+$kind: http-request
+description: Mengembalikan profil pengguna yang sedang terautentikasi.
+url: "{{baseUrl}}/api/me"
+method: GET
+order: 2000

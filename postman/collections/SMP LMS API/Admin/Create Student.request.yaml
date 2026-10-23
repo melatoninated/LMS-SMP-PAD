@@ -1,0 +1,17 @@
+$kind: http-request
+description: "`nisn` harus unik dan tepat 10 digit. Password awal dibuat otomatis dari `birth_date` dalam format DDMMYYYY."
+url: "{{baseUrl}}/api/admin/students"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Siswa Baru",
+      "nisn": "0012345679",
+      "birth_date": "2013-01-15",
+      "cohort_year": 2026,
+      "class_room_id": {{classRoomId}}
+    }
+order: 5000

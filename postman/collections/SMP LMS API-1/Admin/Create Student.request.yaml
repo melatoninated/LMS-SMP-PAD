@@ -1,0 +1,19 @@
+$kind: http-request
+description: "`nisn` harus unik; `birth_date` menggunakan format tanggal valid; `cohort_year` berupa integer."
+url: "{{baseUrl}}/api/admin/students"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Siswa Baru",
+      "nisn": "0012345679",
+      "birth_date": "2013-01-15",
+      "password": "SiswaBaru!2026",
+      "password_confirmation": "SiswaBaru!2026",
+      "cohort_year": 2026,
+      "class_room_id": {{classRoomId}}
+    }
+order: 5000

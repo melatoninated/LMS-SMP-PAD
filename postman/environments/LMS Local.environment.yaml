@@ -1,0 +1,26 @@
+name: LMS Local
+values:
+  - key: baseUrl
+    value: 'http://127.0.0.1:8000'
+  - key: token
+    value: ''
+  - key: role
+    value: student
+  - key: courseId
+    value: '1'
+  - key: sectionId
+    value: '1'
+  - key: assessmentId
+    value: '1'
+  - key: studentId
+    value: '1'
+  - key: materialId
+    value: '1'
+  - key: submissionId
+    value: '1'
+  - key: examSessionId
+    value: '1'
+  - key: academicYearId
+    value: '1'
+  - key: classRoomId
+    value: '1'

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\Course;
-use App\Models\ExamSession;
 use App\Models\Question;
 use App\Models\Student;
 use App\Models\Submission;
@@ -31,8 +30,36 @@ class LmsBusinessTest extends TestCase
     public function test_student_default_password_forces_change(): void
     {
         $user = User::where('username', '0012345671')->first();
-        $this->assertTrue(Hash::check('2012-05-17', $user->password));
+        $this->assertTrue(Hash::check('17052012', $user->password));
         $this->assertTrue($user->must_change_password);
+    }
+
+    public function test_api_login_requires_the_role_selected_on_the_login_screen(): void
+    {
+        $this->postJson('/api/auth/login', [
+            'username' => '0012345671',
+            'password' => '17052012',
+            'role' => 'student',
+            'remember' => true,
+        ])->assertOk()
+            ->assertJsonPath('user.role', 'student')
+            ->assertJsonStructure(['token', 'token_type', 'must_change_password', 'user']);
+
+        $this->postJson('/api/auth/login', [
+            'username' => '0012345671',
+            'password' => '17052012',
+            'role' => 'teacher',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Username atau password tidak sesuai.');
+    }
+
+    public function test_teacher_uses_employee_number_as_login_username(): void
+    {
+        $this->postJson('/api/auth/login', [
+            'username' => 'G001',
+            'password' => 'GuruDev!2026',
+            'role' => 'teacher',
+        ])->assertOk()->assertJsonPath('user.role', 'teacher');
     }
 
     public function test_admin_reset_password_uses_birth_date(): void
@@ -44,13 +71,13 @@ class LmsBusinessTest extends TestCase
         $this->actingAs($admin)->post(route('admin.students.reset-password', $student))->assertRedirect();
 
         $student->user->refresh();
-        $this->assertTrue(Hash::check('2012-05-17', $student->user->password));
+        $this->assertTrue(Hash::check('17052012', $student->user->password));
         $this->assertTrue($student->user->must_change_password);
     }
 
     public function test_teacher_cannot_manage_other_teacher_course(): void
     {
-        $teacher = User::where('username', 'guru2@example.com')->first();
+        $teacher = User::where('username', 'G002')->first();
         $course = Course::where('name', 'Matematika')->first();
 
         $this->actingAs($teacher)->get(route('teacher.courses.show', $course))->assertForbidden();

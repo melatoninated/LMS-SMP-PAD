@@ -1,0 +1,17 @@
+$kind: collection
+name: SMP LMS API
+description: |-
+  # SMP LMS API
+
+  API LMS menggunakan Laravel Sanctum. Pilih environment **LMS Local**, jalankan request **Login**, lalu token Bearer tersimpan otomatis untuk request terproteksi.
+
+  Semua endpoint berada di bawah `{{baseUrl}}/api`. Endpoint dalam folder peran membutuhkan token pengguna dengan peran yang sesuai. Jika akun masih memiliki `must_change_password: true`, ubah password terlebih dahulu melalui **Change Password**.
+variables:
+  username: admin@example.com
+  password: AdminDev!2026
+auth:
+  - id: 13136036-9ad0-4f5e-af43-30e4796648e0
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{token}}"

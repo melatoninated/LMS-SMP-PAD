@@ -1,0 +1,5 @@
+$kind: http-request
+description: Daftar siswa dengan user dan kelas.
+url: "{{baseUrl}}/api/admin/students"
+method: GET
+order: 4000

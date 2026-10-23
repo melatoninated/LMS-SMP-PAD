@@ -1,0 +1,23 @@
+$kind: http-request
+description: Autentikasi sesuai pilihan role di halaman login. Gunakan NISN (10 digit) untuk siswa, NIP untuk guru, dan username akun untuk admin/orang tua. Batas 5 percobaan per menit. Respons menyimpan `token` secara otomatis ke environment aktif.
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "username": "{{username}}",
+      "password": "{{password}}",
+      "role": "{{role}}",
+      "remember": true,
+      "device_name": "postman"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const response = pm.response.json();
+      if (response.token) pm.environment.set('token', response.token);
+      pm.test('Login berhasil', () => pm.expect(pm.response.code).to.equal(200));
+order: 1000

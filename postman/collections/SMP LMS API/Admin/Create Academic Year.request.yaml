@@ -1,0 +1,14 @@
+$kind: http-request
+description: "`name` dan `start_year` wajib dan masing-masing unik."
+url: "{{baseUrl}}/api/admin/academic-years"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "2026/2027",
+      "start_year": 2026
+    }
+order: 12000

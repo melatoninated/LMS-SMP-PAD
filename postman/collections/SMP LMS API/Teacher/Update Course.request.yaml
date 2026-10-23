@@ -1,0 +1,16 @@
+$kind: http-request
+description: Seluruh field utama wajib; `is_active` opsional boolean.
+url: "{{baseUrl}}/api/teacher/courses/{{courseId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Matematika 7 (Revisi)",
+      "description": "Deskripsi terbaru",
+      "target_grade": 7,
+      "is_active": true
+    }
+order: 5000

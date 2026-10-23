@@ -1,0 +1,19 @@
+$kind: http-request
+description: "`student_ids` opsional dan setiap nilai harus merupakan ID siswa yang ada."
+url: "{{baseUrl}}/api/admin/parents"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Orang Tua Baru",
+      "username": "ortu-0012345679",
+      "password": "OrtuBaru!2026",
+      "password_confirmation": "OrtuBaru!2026",
+      "phone": "081234567890",
+      "address": "Jl. Contoh No. 1",
+      "student_ids": [{{studentId}}]
+    }
+order: 8000

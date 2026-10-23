@@ -31,13 +31,13 @@ Buka `http://127.0.0.1:8000`.
 | Role | Username | Password |
 | --- | --- | --- |
 | Admin | `admin@example.com` | `AdminDev!2026` |
-| Guru | `guru1@example.com` | `GuruDev!2026` |
-| Guru | `guru2@example.com` | `GuruDev!2026` |
-| Siswa | `0012345671` | `2012-05-17` |
-| Siswa | `0012345673` | `2011-03-12` |
+| Guru | `G001` | `GuruDev!2026` |
+| Guru | `G002` | `GuruDev!2026` |
+| Siswa | `0012345671` | `17052012` |
+| Siswa | `0012345673` | `12032011` |
 | Orang Tua | `ortu-0012345671` | `OrtuDev!2026` |
 
-Password awal siswa adalah tanggal lahir dan disimpan menggunakan hashing Laravel. Siswa wajib mengganti password sebelum masuk dashboard.
+Password awal siswa adalah tanggal lahir dalam format `DDMMYYYY` dan disimpan menggunakan hashing Laravel. Siswa wajib mengganti password sebelum masuk dashboard. Guru login dengan NIP; admin dan orang tua menggunakan username akun masing-masing.
 
 ## Struktur Penting
 
@@ -66,9 +66,15 @@ API tersedia di prefix `/api` dan memakai Bearer token Laravel Sanctum. Jalankan
 php artisan migrate
 ```
 
-Login melalui `POST /api/auth/login` dengan JSON `username`, `password`, dan opsional `device_name`. Respons berisi `token`; kirim token tersebut pada request berikutnya sebagai `Authorization: Bearer <token>`.
+Login melalui `POST /api/auth/login` dengan JSON `username`, `password`, `role`, serta opsional `remember` dan `device_name`. Nilai `role` harus salah satu dari `admin`, `student`, `teacher`, atau `parent`; ini harus dikirim sesuai pilihan **Login sebagai** di frontend. Respons berisi `token`; kirim token tersebut pada request berikutnya sebagai `Authorization: Bearer <token>`. Token tanpa `remember: true` berlaku satu hari.
 
 Endpoint utama: `GET /api/me`, `PUT /api/auth/password`, `POST /api/auth/logout`, serta grup role `/api/admin`, `/api/teacher`, `/api/student`, dan `/api/parent`. Lihat `routes/api.php` untuk daftar endpoint lengkap dan format parameter validasi di controller `app/Http/Controllers/Api`.
+
+## Dokumentasi Postman
+
+Koleksi Postman siap pakai tersedia di [`postman/collections/SMP LMS API.postman_collection.json`](postman/collections/SMP%20LMS%20API.postman_collection.json), dengan environment lokal di [`postman/environments/LMS Local.postman_environment.json`](postman/environments/LMS%20Local.postman_environment.json). Keduanya juga terdaftar otomatis oleh Postman Local View melalui folder `postman/`.
+
+Pilih environment **LMS Local**, sesuaikan `baseUrl` bila perlu, lalu jalankan request **Authentication → Login**. Token respons akan otomatis disimpan ke variabel `token` dan digunakan oleh seluruh request yang membutuhkan autentikasi. Variabel ID (misalnya `courseId` dan `assessmentId`) dapat diganti dari environment sesuai data database.
 
 Test mencakup password default, reset password admin, authorization guru, kenaikan kelas otomatis, aturan akses assessment kelas sebelumnya, grading otomatis/manual, timer ujian server-side, dan parent-child access.
 

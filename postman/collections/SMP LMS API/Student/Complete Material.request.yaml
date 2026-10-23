@@ -1,0 +1,5 @@
+$kind: http-request
+description: Menandai materi telah selesai. Respons sukses memuat message.
+url: "{{baseUrl}}/api/student/materials/{{materialId}}/complete"
+method: POST
+order: 5000

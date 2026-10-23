@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\StudentImportTemplateExport;
+use App\Imports\StudentsImport;
 use App\Models\AcademicYear;
+use App\Models\AuditLog;
 use App\Models\ClassRoom;
+use App\Models\Course;
 use App\Models\ParentProfile;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\AcademicYearService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Facades\Excel;
@@ -21,10 +26,10 @@ class AdminController extends Controller
             'students' => Student::count(),
             'teachers' => Teacher::count(),
             'parents' => ParentProfile::count(),
-            'courses' => \App\Models\Course::count(),
+            'courses' => Course::count(),
             'activeYear' => AcademicYear::where('is_active', true)->first(),
             'classes' => ClassRoom::withCount('students')->get(),
-            'logs' => \App\Models\AuditLog::latest('id')->limit(8)->get(),
+            'logs' => AuditLog::latest('id')->limit(8)->get(),
         ]);
     }
 
@@ -35,9 +40,9 @@ class AdminController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate(['name' => ['required'], 'email' => ['required', 'email', 'unique:users,email'], 'employee_no' => ['nullable', 'unique:teachers,employee_no']]);
-        $user = User::create(['name' => $data['name'], 'username' => $data['email'], 'email' => $data['email'], 'password' => Hash::make('GuruDev!2026'), 'role' => 'teacher']);
-        Teacher::create(['user_id' => $user->id, 'employee_no' => $data['employee_no'] ?? null]);
+        $data = $request->validate(['name' => ['required'], 'email' => ['required', 'email', 'unique:users,email'], 'employee_no' => ['required', 'unique:teachers,employee_no', 'unique:users,username']]);
+        $user = User::create(['name' => $data['name'], 'username' => $data['employee_no'], 'email' => $data['email'], 'password' => Hash::make('GuruDev!2026'), 'role' => 'teacher']);
+        Teacher::create(['user_id' => $user->id, 'employee_no' => $data['employee_no']]);
 
         return back()->with('status', 'Guru berhasil ditambahkan.');
     }
@@ -50,11 +55,11 @@ class AdminController extends Controller
     public function storeStudent(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required'], 'nisn' => ['required', 'unique:students,nisn'],
+            'name' => ['required'], 'nisn' => ['required', 'digits:10', 'unique:students,nisn', 'unique:users,username'],
             'birth_date' => ['required', 'date'], 'cohort_year' => ['required', 'integer'],
             'class_room_id' => ['nullable', 'exists:class_rooms,id'],
         ]);
-        $user = User::create(['name' => $data['name'], 'username' => $data['nisn'], 'password' => Hash::make($data['birth_date']), 'role' => 'student', 'must_change_password' => true]);
+        $user = User::create(['name' => $data['name'], 'username' => $data['nisn'], 'password' => Carbon::parse($data['birth_date'])->format('dmY'), 'role' => 'student', 'must_change_password' => true]);
         Student::create([...$data, 'user_id' => $user->id]);
 
         return back()->with('status', 'Siswa berhasil ditambahkan.');
@@ -62,8 +67,8 @@ class AdminController extends Controller
 
     public function resetStudentPassword(Student $student)
     {
-        $student->user->update(['password' => Hash::make($student->birth_date->toDateString()), 'must_change_password' => true]);
-        \App\Models\AuditLog::create(['user_id' => auth()->id(), 'event' => 'student_password_reset', 'entity_type' => Student::class, 'entity_id' => $student->id, 'created_at' => now()]);
+        $student->user->update(['password' => $student->birth_date->format('dmY'), 'must_change_password' => true]);
+        AuditLog::create(['user_id' => auth()->id(), 'event' => 'student_password_reset', 'entity_type' => Student::class, 'entity_id' => $student->id, 'created_at' => now()]);
 
         return back()->with('status', 'Password siswa direset ke tanggal lahir.');
     }
@@ -123,13 +128,13 @@ class AdminController extends Controller
 
     public function studentImportTemplate()
     {
-        return Excel::download(new \App\Exports\StudentImportTemplateExport, 'template_import_siswa.xlsx');
+        return Excel::download(new StudentImportTemplateExport, 'template_import_siswa.xlsx');
     }
 
     public function importStudents(Request $request)
     {
         $request->validate(['file' => ['required', 'file', 'mimes:xlsx']]);
-        $import = new \App\Imports\StudentsImport;
+        $import = new StudentsImport;
         Excel::import($import, $request->file('file'));
 
         return back()->with('status', "Import selesai. Berhasil: {$import->imported}. Gagal: ".count($import->failures))->with('import_failures', $import->failures);

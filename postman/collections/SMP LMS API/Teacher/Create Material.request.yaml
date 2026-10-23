@@ -1,0 +1,17 @@
+$kind: http-request
+description: "Tipe materi: `text`, `pdf`, `video`, `audio`, atau `file`. `body` dan `file_path` opsional."
+url: "{{baseUrl}}/api/teacher/sections/{{sectionId}}/materials"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "title": "Pengenalan Bilangan",
+      "type": "text",
+      "body": "Isi materi",
+      "file_path": null,
+      "target_grade": 7
+    }
+order: 8000

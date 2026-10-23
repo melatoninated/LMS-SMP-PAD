@@ -1,0 +1,5 @@
+$kind: http-request
+description: Daftar guru beserta data user.
+url: "{{baseUrl}}/api/admin/teachers"
+method: GET
+order: 2000

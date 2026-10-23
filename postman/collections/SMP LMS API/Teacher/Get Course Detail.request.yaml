@@ -1,0 +1,5 @@
+$kind: http-request
+description: Menampilkan section, materi, assessment, soal, dan pilihan jawaban.
+url: "{{baseUrl}}/api/teacher/courses/{{courseId}}"
+method: GET
+order: 4000

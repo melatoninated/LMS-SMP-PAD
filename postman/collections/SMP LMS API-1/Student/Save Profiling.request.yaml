@@ -1,0 +1,16 @@
+$kind: http-request
+description: "`answers` wajib. Setiap nilai jawaban adalah integer 1 sampai 5."
+url: "{{baseUrl}}/api/student/profile/profiling"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "answers": {
+        "1": 4,
+        "2": 3
+      }
+    }
+order: 11000

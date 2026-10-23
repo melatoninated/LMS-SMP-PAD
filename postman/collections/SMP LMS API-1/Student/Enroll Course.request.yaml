@@ -1,0 +1,5 @@
+$kind: http-request
+description: Mendaftar ke course jika target grade course tidak melebihi grade siswa.
+url: "{{baseUrl}}/api/student/courses/{{courseId}}/enroll"
+method: POST
+order: 3000

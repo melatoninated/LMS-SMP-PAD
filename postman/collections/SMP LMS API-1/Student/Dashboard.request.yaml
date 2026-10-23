@@ -1,0 +1,5 @@
+$kind: http-request
+description: Profil siswa, tingkat yang diharapkan, status pembaruan kelas, dan course yang diikuti.
+url: "{{baseUrl}}/api/student/dashboard"
+method: GET
+order: 1000

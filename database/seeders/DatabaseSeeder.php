@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\StudentClassHistory;
 use App\Models\Teacher;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -68,7 +69,7 @@ class DatabaseSeeder extends Seeder
                 ClassRoom::firstOrCreate(
                     [
                         'academic_year_id' => $academicYear->id,
-                        'name' => $level . $suffix,
+                        'name' => $level.$suffix,
                     ],
                     [
                         'grade_level' => $level,
@@ -82,14 +83,14 @@ class DatabaseSeeder extends Seeder
         // GURU
         // =========================
         $teacherUsers = collect([
-            ['guru1@example.com', 'Bu Ratna'],
-            ['guru2@example.com', 'Pak Dimas'],
+            ['G001', 'guru1@example.com', 'Bu Ratna'],
+            ['G002', 'guru2@example.com', 'Pak Dimas'],
         ])->map(
             fn ($row) => User::firstOrCreate(
                 ['username' => $row[0]],
                 [
-                    'name' => $row[1],
-                    'email' => $row[0],
+                    'name' => $row[2],
+                    'email' => $row[1],
                     'password' => Hash::make('GuruDev!2026'),
                     'role' => 'teacher',
                 ]
@@ -100,12 +101,10 @@ class DatabaseSeeder extends Seeder
             fn ($user, $i) => Teacher::firstOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'employee_no' => 'G' . str_pad(
-                        $i + 1,
-                        3,
-                        '0',
-                        STR_PAD_LEFT
-                    ),
+                    'employee_no' => [
+                        'G001',
+                        'G002',
+                    ][$i],
                 ]
             )
         );
@@ -123,14 +122,11 @@ class DatabaseSeeder extends Seeder
 
         foreach ($students as [$nisn, $name, $birth, $cohort, $className]) {
 
-            // Password awal = tanggal lahir (ddmmyy)
-            $password = \Carbon\Carbon::parse($birth)->format('dmy');
-
             $user = User::firstOrCreate(
                 ['username' => $nisn],
                 [
                     'name' => $name,
-                    'password' => Hash::make($password),
+                    'password' => Hash::make(Carbon::parse($birth)->format('dmY')),
                     'role' => 'student',
                     'must_change_password' => true,
                 ]
@@ -167,9 +163,9 @@ class DatabaseSeeder extends Seeder
             // ORANG TUA
             // =========================
             $parentUser = User::firstOrCreate(
-                ['username' => 'ortu-' . $nisn],
+                ['username' => 'ortu-'.$nisn],
                 [
-                    'name' => 'Orang Tua ' . $name,
+                    'name' => 'Orang Tua '.$name,
                     'password' => Hash::make('OrtuDev!2026'),
                     'role' => 'parent',
                 ]

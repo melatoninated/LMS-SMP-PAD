@@ -1,0 +1,14 @@
+$kind: http-request
+description: Nilai wajib numerik; feedback opsional.
+url: "{{baseUrl}}/api/teacher/submissions/{{submissionId}}/grade"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "score": 85,
+      "feedback": "Jawaban sudah baik."
+    }
+order: 12000

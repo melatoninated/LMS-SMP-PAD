@@ -1,0 +1,5 @@
+$kind: http-request
+description: Daftar tahun ajaran terbaru lebih dahulu.
+url: "{{baseUrl}}/api/admin/academic-years"
+method: GET
+order: 11000

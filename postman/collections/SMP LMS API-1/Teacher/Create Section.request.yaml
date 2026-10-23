@@ -1,0 +1,13 @@
+$kind: http-request
+description: Position section diatur otomatis.
+url: "{{baseUrl}}/api/teacher/courses/{{courseId}}/sections"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "title": "Bab 1: Bilangan"
+    }
+order: 7000

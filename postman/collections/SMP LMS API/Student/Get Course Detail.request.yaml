@@ -1,0 +1,5 @@
+$kind: http-request
+description: Section, materi, dan assessment dari course yang boleh diakses.
+url: "{{baseUrl}}/api/student/courses/{{courseId}}"
+method: GET
+order: 4000

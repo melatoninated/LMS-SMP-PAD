@@ -1,0 +1,20 @@
+$kind: http-request
+description: "Tipe soal: `multiple_choice`, `true_false`, `essay`, atau `file_upload`. Untuk pilihan ganda, kirim `options` dengan `text` dan `is_correct`."
+url: "{{baseUrl}}/api/teacher/assessments/{{assessmentId}}/questions"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "type": "multiple_choice",
+      "prompt": "Hasil dari 2 + 2 adalah...",
+      "points": 10,
+      "correct_answer": null,
+      "options": [
+        { "text": "3", "is_correct": false },
+        { "text": "4", "is_correct": true }
+      ]
+    }
+order: 10000

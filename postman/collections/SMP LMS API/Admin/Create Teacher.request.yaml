@@ -1,0 +1,18 @@
+$kind: http-request
+description: "`name`, `email`, `password`, `password_confirmation`, dan `employee_no` (NIP) wajib. NIP menjadi username untuk login guru."
+url: "{{baseUrl}}/api/admin/teachers"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Guru Baru",
+      "email": "guru.baru@example.com",
+      "password": "GuruBaru!2026",
+      "password_confirmation": "GuruBaru!2026",
+      "employee_no": "G-003",
+      "phone": "081234567890"
+    }
+order: 3000

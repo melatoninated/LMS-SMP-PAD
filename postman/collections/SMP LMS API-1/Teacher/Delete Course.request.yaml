@@ -1,0 +1,5 @@
+$kind: http-request
+description: "Menghapus course milik guru. Respons sukses: 204 No Content."
+url: "{{baseUrl}}/api/teacher/courses/{{courseId}}"
+method: DELETE
+order: 6000

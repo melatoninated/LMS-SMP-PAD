@@ -1,0 +1,5 @@
+$kind: http-request
+description: Menjadikan tahun ajaran terpilih aktif.
+url: "{{baseUrl}}/api/admin/academic-years/{{academicYearId}}/activate"
+method: POST
+order: 13000

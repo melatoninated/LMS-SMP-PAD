@@ -1,0 +1,5 @@
+$kind: http-request
+description: Ringkasan jumlah siswa, guru, orang tua, course, tahun ajaran aktif, dan kelas.
+url: "{{baseUrl}}/api/admin/dashboard"
+method: GET
+order: 1000
