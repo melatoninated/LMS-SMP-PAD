@@ -1,83 +1,105 @@
-# SMP LMS Laravel
+# SMP LMS
 
-Learning Management System untuk sekolah SMP berbasis Laravel, SQLite/MySQL, dan Tailwind CSS.
+Backend Learning Management System (LMS) untuk SMP, dengan UI Blade dan REST API untuk frontend terpisah. Dibangun dengan Laravel 12, Sanctum, SQLite/MySQL, Vite, dan Tailwind CSS.
 
+## Fitur
 
-## Requirement Runtime
+- Peran admin, guru, siswa, dan orang tua.
+- Pengelolaan tahun ajaran, kelas, pengguna, mata pelajaran, serta penugasan mengajar.
+- Course, materi, assessment, soal, pengumpulan, penilaian, dan import siswa XLSX.
+- Ujian bertimer server-side, draft jawaban, log aktivitas, profiling, dan riwayat kelas.
 
-- PHP 8.2+
-- Composer
-- Node.js dan npm
+## Prasyarat
 
-Di environment saat ini `php` dan `composer` belum tersedia, sehingga saya belum bisa menjalankan `composer install`, migration, atau test Laravel secara lokal.
+- PHP 8.2+ (Composer dikunci ke platform PHP 8.3)
+- Composer 2
+- Node.js 20+ dan npm
+- SQLite untuk lokal atau MySQL untuk produksi
 
-## Setup
+## Menjalankan secara lokal
 
-```bash
+Perintah berikut ditujukan untuk PowerShell.
+
+```powershell
 composer install
 npm install
-cp .env.example .env
+Copy-Item .env.example .env
 php artisan key:generate
-touch database/database.sqlite
+New-Item -ItemType File -Path database/database.sqlite -Force
 php artisan migrate --seed
 npm run build
 php artisan serve
 ```
 
-Buka `http://127.0.0.1:8000`.
+Buka `http://127.0.0.1:8000`. Jalankan `npm run dev` pada terminal lain selama mengembangkan aset. Konfigurasi bawaan `.env.example` telah memakai SQLite di `database/database.sqlite`. Untuk MySQL, ubah `DB_CONNECTION=mysql` dan isi seluruh variabel `DB_*` sebelum migrasi.
 
-## Akun Demo
+## Akun data seed
 
-| Role | Username | Password |
+| Peran | Username | Password awal |
 | --- | --- | --- |
 | Admin | `admin@example.com` | `AdminDev!2026` |
-| Guru | `G001` | `GuruDev!2026` |
-| Guru | `G002` | `GuruDev!2026` |
+| Guru | `G001` atau `G002` | `GuruDev!2026` |
 | Siswa | `0012345671` | `20120517` |
 | Siswa | `0012345673` | `20110312` |
-| Orang Tua | `0012345671` | `20120517` |
+| Orang tua | `0012345671` | `20120517` |
 
-Password awal siswa dan orang tua adalah tanggal lahir siswa dalam format `YYYYMMDD` dan disimpan menggunakan hashing Laravel. Siswa dan orang tua memakai NISN yang sama, tetapi masuk lewat endpoint/form yang terpisah. Semua pengguna baru wajib mengganti password sebelum masuk dashboard.
-
-## Struktur Penting
-
-- `app/Models`: model Eloquent untuk user, siswa, guru, orang tua, course, assessment, exam, dan profiling.
-- `app/Http/Controllers`: controller per role dan flow LMS.
-- `app/Http/Middleware`: role middleware dan force change password.
-- `app/Policies`: proteksi backend untuk course guru dan submission.
-- `app/Services`: business logic kenaikan kelas, assessment, dan exam timer server-side.
-- `database/migrations`: schema relasional dengan FK dan index.
-- `database/seeders/DatabaseSeeder.php`: seed akun demo dan materi contoh.
-- `app/Imports` dan `app/Exports`: import siswa dan export nilai via Laravel Excel.
-- `resources/views`: Blade UI dengan Tailwind CSS.
-- `tests/Feature/LmsBusinessTest.php`: test business rule utama.
-
-## Test
-
-```bash
-php artisan test
-```
+Password awal siswa dan orang tua memakai tanggal lahir anak (`YYYYMMDD`). Semua akun seed siswa dan orang tua wajib mengganti password melalui API sebelum memakai endpoint fitur peran.
 
 ## API
 
-API tersedia di prefix `/api` dan memakai Bearer token Laravel Sanctum. Jalankan migration setelah menarik perubahan ini agar tabel token dibuat.
+Base URL lokal adalah `http://127.0.0.1:8000/api`. API memakai Bearer token Laravel Sanctum, bukan cookie lintas domain.
 
-```bash
-php artisan migrate
+```http
+POST /api/auth/login
+Accept: application/json
+Content-Type: application/json
+
+{
+  "username": "G001",
+  "password": "GuruDev!2026",
+  "role": "teacher",
+  "device_name": "frontend-web",
+  "remember": true
+}
 ```
 
-Login melalui `POST /api/auth/login` dengan JSON `username`, `password`, `role`, serta opsional `remember` dan `device_name`. Nilai `role` harus salah satu dari `admin`, `student`, `teacher`, atau `parent`; ini harus dikirim sesuai pilihan **Login sebagai** di frontend. Respons berisi `token`; kirim token tersebut pada request berikutnya sebagai `Authorization: Bearer <token>`. Token tanpa `remember: true` berlaku satu hari.
+Gunakan `token` dari respons pada request yang terlindungi:
 
-Endpoint utama: `GET /api/me`, `PUT /api/auth/password`, `POST /api/auth/logout`, serta grup role `/api/admin`, `/api/teacher`, `/api/student`, dan `/api/parent`. Lihat `routes/api.php` untuk daftar endpoint lengkap dan format parameter validasi di controller `app/Http/Controllers/Api`.
+```http
+Authorization: Bearer <token>
+Accept: application/json
+```
 
-## Dokumentasi Postman
+Kontrak lengkap endpoint, peran, payload, validasi, respons, dan aturan integrasi tersedia di [docs/API_CONTRACT.md](docs/API_CONTRACT.md). Kontrak ini adalah acuan frontend; verifikasi rute dengan `php artisan route:list --path=api`.
 
-Koleksi Postman siap pakai tersedia di [`postman/collections/SMP LMS API.postman_collection.json`](postman/collections/SMP%20LMS%20API.postman_collection.json), dengan environment lokal di [`postman/environments/LMS Local.postman_environment.json`](postman/environments/LMS%20Local.postman_environment.json). Keduanya juga terdaftar otomatis oleh Postman Local View melalui folder `postman/`.
+Validasi Laravel mengembalikan `422` dengan `message` dan `errors`; autentikasi/otorisasi menghasilkan `401`/`403`. Respons list dibungkus dalam `{ "data": [...] }` dan belum dipaginasi.
 
-Pilih environment **LMS Local**, sesuaikan `baseUrl` bila perlu, lalu jalankan request **Authentication → Login**. Token respons akan otomatis disimpan ke variabel `token` dan digunakan oleh seluruh request yang membutuhkan autentikasi. Variabel ID (misalnya `courseId` dan `assessmentId`) dapat diganti dari environment sesuai data database.
+## Unggahan
 
-Test mencakup password default, reset password admin, authorization guru, kenaikan kelas otomatis, aturan akses assessment kelas sebelumnya, grading otomatis/manual, timer ujian server-side, dan parent-child access.
+Kirim materi dan jawaban file menggunakan `multipart/form-data`. Jawaban assessment memakai key `files[{questionId}]`. Batas aplikasi: gambar 5 MB, PDF 10 MB, audio 15 MB, video 50 MB; format lain ditolak. Buat storage link untuk menyajikan file secara lokal:
 
-## Catatan Keamanan Ujian
+```powershell
+php artisan storage:link
+```
 
-Proteksi copy, paste, text selection, fullscreen, dan log keluar fullscreen dibuat sebagai proteksi dasar browser. JavaScript tidak bisa menjamin keamanan absolut terhadap developer tools. Kontrol utama tetap berada di backend melalui authorization, server-side `exam_sessions.expires_at`, submission state, dan activity log.
+## Pemeriksaan
+
+```powershell
+php artisan route:list --path=api
+npm run build
+```
+
+Proyek saat ini belum memiliki suite test yang dapat dijalankan melalui `php artisan test`. Health check bawaan Laravel tersedia pada `GET /up`, bukan di bawah `/api`.
+
+## Deployment dan integrasi frontend
+
+Panduan Next.js/Vercel dan Wasmer ada di [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md). Pada produksi gunakan MySQL serta volume persisten untuk `storage/app/public`, simpan `APP_KEY` sebagai secret, set `APP_DEBUG=false`, dan isi `CORS_ALLOWED_ORIGINS` dengan origin frontend HTTPS tanpa path/trailing slash.
+
+## Struktur utama
+
+- `routes/api.php` — REST API dan middleware peran.
+- `app/Http/Controllers/Api` — implementasi API.
+- `app/Services` — aturan assessment, ujian, unggahan, dan tahun ajaran.
+- `database/migrations`, `database/seeders` — skema dan data demo.
+- `resources/views` — UI Blade.
+- `docs/API_CONTRACT.md` — kontrak integrasi API.

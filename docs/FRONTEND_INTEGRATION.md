@@ -84,7 +84,7 @@ capabilities:
     engine: mysql
   instaboot:
     requests:
-      - path: /api/health
+      - path: /up
 locality:
   regions:
     - fr-roub1
@@ -95,7 +95,7 @@ scaling:
   mode: single_concurrency
 ```
 
-Pilih region database yang tersedia dan dekat dengan pengguna; `fr-roub1` di atas hanya contoh. Jika aplikasi belum memiliki `/api/health`, ganti `path` dengan endpoint publik yang mengembalikan sukses atau hapus blok `instaboot`. Volume pada `/app/storage/app/public` membuat disk Laravel `public` tetap persisten. Sebelum deployment, buat `public/storage` melalui `php artisan storage:link` dan pastikan symbolic link itu ada dalam artefak/package deployment; membuatnya hanya dalam sesi SSH tidak akan bertahan pada release berikutnya.
+Pilih region database yang tersedia dan dekat dengan pengguna; `fr-roub1` di atas hanya contoh. Aplikasi Laravel ini menyediakan health check publik pada `/up`. Volume pada `/app/storage/app/public` membuat disk Laravel `public` tetap persisten. Sebelum deployment, buat `public/storage` melalui `php artisan storage:link` dan pastikan symbolic link itu ada dalam artefak/package deployment; membuatnya hanya dalam sesi SSH tidak akan bertahan pada release berikutnya.
 
 ### 2. Instal, login, dan deploy
 
@@ -144,10 +144,10 @@ SSH aplikasi membutuhkan paket/izin Wasmer yang mendukungnya. Bila tidak tersedi
 ### 4. Validasi backend
 
 ```powershell
-curl.exe -i https://lms-api-<owner>.wasmer.app/api/health
+curl.exe -i https://lms-api-<owner>.wasmer.app/up
 ```
 
-Jika route health belum tersedia, uji endpoint publik lain. Periksa log Wasmer bila respons `500`. Sebelum frontend dipakai, backend harus memiliki `APP_DEBUG=false`, secret `APP_KEY`, database yang telah dimigrasi, dan URL production Vercel pada CORS.
+Periksa log Wasmer bila respons `500`. Sebelum frontend dipakai, backend harus memiliki `APP_DEBUG=false`, secret `APP_KEY`, database yang telah dimigrasi, dan URL production Vercel pada CORS.
 
 ## Konfigurasi frontend
 
@@ -260,7 +260,7 @@ api.interceptors.request.use((config) => {
 });
 ```
 
-Daftar request siap-uji tersedia pada koleksi Postman di `postman/collections/SMP LMS API-1`.
+Gunakan [kontrak API](API_CONTRACT.md) sebagai daftar request dan payload yang siap diuji.
 
 ## Checklist integrasi sebelum rilis
 
