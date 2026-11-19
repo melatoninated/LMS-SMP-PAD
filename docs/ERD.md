@@ -1,301 +1,141 @@
-# ERD SMP LMS
+# LMS-SMP data model
 
-ERD ini dibuat dari migration Laravel:
-
-- `database/migrations/0001_01_01_000000_create_users_table.php`
-- `database/migrations/2026_09_03_000001_create_lms_tables.php`
+This ERD is a documentation view of the current Laravel migrations, including later schema changes for academic years, teaching assignments, soft deletion, assessment drafts, and Sanctum tokens. Migrations remain the schema source of truth.
 
 ```mermaid
-
+erDiagram
     USERS ||--o| TEACHERS : has_profile
     USERS ||--o| STUDENTS : has_profile
     USERS ||--o| PARENTS : has_profile
-    USERS ||--o{ SESSIONS : owns
+    USERS ||--o{ PERSONAL_ACCESS_TOKENS : owns
     USERS ||--o{ AUDIT_LOGS : creates
-erDiagram
+
+    ACADEMIC_YEARS ||--o{ CLASS_ROOMS : contains
+    ACADEMIC_YEARS ||--o{ TEACHING_ASSIGNMENTS : applies_to
+    ACADEMIC_YEARS ||--o{ COURSES : applies_to
     CLASS_ROOMS ||--o{ STUDENTS : contains
-    PARENTS }o--o{ STUDENTS : monitors
+    CLASS_ROOMS ||--o{ TEACHING_ASSIGNMENTS : receives
+    CLASS_ROOMS ||--o{ COURSES : applies_to
 
+    PARENTS }o--o{ STUDENTS : parent_student
+    PARENTS }o--o| STUDENTS : primary_student
+    STUDENTS ||--o{ STUDENT_CLASS_HISTORIES : records
+    ACADEMIC_YEARS ||--o{ STUDENT_CLASS_HISTORIES : records
+    CLASS_ROOMS ||--o{ STUDENT_CLASS_HISTORIES : records
+
+    TEACHERS ||--o{ TEACHING_ASSIGNMENTS : receives
+    SUBJECTS ||--o{ TEACHING_ASSIGNMENTS : defines
     TEACHERS ||--o{ COURSES : owns
-    TEACHERS ||--o{ GRADES : grades
-    COURSES }o--o{ STUDENTS : enrolled_by
+    TEACHING_ASSIGNMENTS ||--o{ COURSES : creates
+    COURSES }o--o{ STUDENTS : course_student
     COURSES ||--o{ SECTIONS : contains
-
     SECTIONS ||--o{ MATERIALS : contains
     SECTIONS ||--o{ ASSESSMENTS : contains
-
-    MATERIALS }o--o{ STUDENTS : completed_by
+    MATERIALS }o--o{ STUDENTS : material_progress
 
     ASSESSMENTS ||--o{ QUESTIONS : contains
     ASSESSMENTS ||--o{ SUBMISSIONS : receives
-    ASSESSMENTS ||--o{ EXAM_SESSIONS : schedules
-
-    QUESTIONS ||--o{ QUESTION_OPTIONS : has_options
-    QUESTIONS ||--o{ ANSWERS : answered_in
-
+    ASSESSMENTS ||--o{ EXAM_SESSIONS : starts
+    ASSESSMENTS ||--o{ ASSESSMENT_DRAFTS : has
+    QUESTIONS ||--o{ QUESTION_OPTIONS : has
+    QUESTIONS ||--o{ ANSWERS : receives
     STUDENTS ||--o{ SUBMISSIONS : submits
     STUDENTS ||--o{ EXAM_SESSIONS : takes
-    STUDENTS ||--o{ PROFILING_ANSWERS : fills
-
+    STUDENTS ||--o{ ASSESSMENT_DRAFTS : saves
     SUBMISSIONS ||--o{ ANSWERS : contains
     SUBMISSIONS ||--o| GRADES : receives
-
+    TEACHERS ||--o{ GRADES : gives
     EXAM_SESSIONS ||--o{ EXAM_ACTIVITY_LOGS : records
-
-    PROFILING_QUESTIONS ||--o{ PROFILING_ANSWERS : answered_by
+    STUDENTS ||--o{ PROFILING_ANSWERS : provides
+    PROFILING_QUESTIONS ||--o{ PROFILING_ANSWERS : defines
 
     USERS {
         bigint id PK
-        string name
-        string username UK
-        string email UK
-        string password
+        string username "unique with role"
         enum role
         bool must_change_password
         bool is_active
-        string remember_token
-        datetime created_at
-        datetime updated_at
+        bool is_deleted
     }
-
-    SESSIONS {
-        string id PK
-        bigint user_id FK
-        string ip_address
-        text user_agent
-        text payload
-        int last_activity
-    }
-
     ACADEMIC_YEARS {
         bigint id PK
         string name UK
         int start_year UK
         bool is_active
-        datetime created_at
-        datetime updated_at
+        bool is_deleted
     }
-
     CLASS_ROOMS {
         bigint id PK
+        bigint academic_year_id FK
         string name UK
         int grade_level
-        bool is_active
-        datetime created_at
-        datetime updated_at
+        bool is_deleted
     }
-
-    TEACHERS {
-        bigint id PK
-        bigint user_id FK, UK
-        string employee_no UK
-        string phone
-        datetime created_at
-        datetime updated_at
-    }
-
-    PARENTS {
-        bigint id PK
-        bigint user_id FK, UK
-        string phone
-        text address
-        datetime created_at
-        datetime updated_at
-    }
-
     STUDENTS {
         bigint id PK
-        bigint user_id FK, UK
+        bigint user_id FK
+        bigint class_room_id FK
         string nisn UK
         date birth_date
         int cohort_year
+        bool is_deleted
+    }
+    PARENTS {
+        bigint id PK
+        bigint user_id FK
+        bigint student_id FK "unique primary child"
+        bool is_deleted
+    }
+    TEACHERS {
+        bigint id PK
+        bigint user_id FK
+        string employee_no UK
+        bool is_deleted
+    }
+    SUBJECTS {
+        bigint id PK
+        string code UK
+        string name UK
+        bool is_deleted
+    }
+    TEACHING_ASSIGNMENTS {
+        bigint id PK
+        bigint teacher_id FK
+        bigint subject_id FK
+        bigint academic_year_id FK
         bigint class_room_id FK
-        bool is_active
-        bool is_graduated
-        datetime created_at
-        datetime updated_at
+        int grade_level
+        bool is_deleted
     }
-
-    PARENT_STUDENT {
-        bigint parent_profile_id PK, FK
-        bigint student_id PK, FK
-        string relationship
-    }
-
     COURSES {
         bigint id PK
         bigint teacher_id FK
-        string name
-        text description
+        bigint teaching_assignment_id FK
+        bigint academic_year_id FK
+        bigint class_room_id FK
         int target_grade
-        bool is_active
-        datetime created_at
-        datetime updated_at
+        bool is_deleted
     }
-
-    COURSE_STUDENT {
-        bigint course_id PK, FK
-        bigint student_id PK, FK
-        datetime created_at
-        datetime updated_at
-    }
-
-    SECTIONS {
-        bigint id PK
-        bigint course_id FK
-        string title
-        int position
-        datetime created_at
-        datetime updated_at
-    }
-
-    MATERIALS {
-        bigint id PK
-        bigint section_id FK
-        string title
-        enum type
-        text body
-        string file_path
-        int target_grade
-        datetime created_at
-        datetime updated_at
-    }
-
-    MATERIAL_PROGRESS {
-        bigint material_id PK, FK
-        bigint student_id PK, FK
-        datetime completed_at
-    }
-
-    ASSESSMENTS {
-        bigint id PK
-        bigint section_id FK
-        string title
-        text description
-        int target_grade
-        bool is_exam
-        int duration_minutes
-        datetime start_at
-        datetime end_at
-        int maximum_attempt
-        decimal passing_score
-        datetime created_at
-        datetime updated_at
-    }
-
-    QUESTIONS {
-        bigint id PK
-        bigint assessment_id FK
-        enum type
-        text prompt
-        decimal points
-        text correct_answer
-        int position
-        datetime created_at
-        datetime updated_at
-    }
-
-    QUESTION_OPTIONS {
-        bigint id PK
-        bigint question_id FK
-        string option_text
-        bool is_correct
-        datetime created_at
-        datetime updated_at
-    }
-
-    SUBMISSIONS {
+    ASSESSMENT_DRAFTS {
         bigint id PK
         bigint assessment_id FK
         bigint student_id FK
-        int attempt_no
-        datetime submitted_at
-        decimal score
-        enum status
-        text feedback
-        datetime created_at
-        datetime updated_at
+        json answers
     }
-
-    ANSWERS {
-        bigint id PK
-        bigint submission_id FK
-        bigint question_id FK
-        text answer_text
-        string file_path
-        bool is_correct
-        decimal points_awarded
-        datetime created_at
-        datetime updated_at
-    }
-
-    GRADES {
-        bigint id PK
-        bigint submission_id FK, UK
-        bigint teacher_id FK
-        decimal score
-        string status
-        text feedback
-        datetime graded_at
-        datetime created_at
-        datetime updated_at
-    }
-
     EXAM_SESSIONS {
         bigint id PK
         bigint assessment_id FK
         bigint student_id FK
-        datetime started_at
+        int attempt_no
         datetime expires_at
-        datetime submitted_at
         enum status
-        datetime created_at
-        datetime updated_at
-    }
-
-    EXAM_ACTIVITY_LOGS {
-        bigint id PK
-        bigint exam_session_id FK
-        string event
-        text detail
-        datetime created_at
-        datetime updated_at
-    }
-
-    PROFILING_QUESTIONS {
-        bigint id PK
-        string code UK
-        text prompt
-        string material_keyword
-        datetime created_at
-        datetime updated_at
-    }
-
-    PROFILING_ANSWERS {
-        bigint id PK
-        bigint profiling_question_id FK
-        bigint student_id FK
-        int answer_value
-        datetime created_at
-        datetime updated_at
-    }
-
-    AUDIT_LOGS {
-        bigint id PK
-        bigint user_id FK
-        string event
-        string entity_type
-        bigint entity_id
-        text detail
-        datetime created_at
     }
 ```
 
-## Catatan Relasi
+## Schema notes
 
-- `users.role` menentukan akses utama: `admin`, `teacher`, `student`, atau `parent`.
-- `teachers`, `students`, dan `parents` adalah profile table yang terhubung 1:1 ke `users`.
-- `parent_student`, `course_student`, dan `material_progress` adalah pivot table.
-- `academic_years` tidak memiliki FK langsung ke siswa karena tingkat kelas dihitung dari `students.cohort_year` dan tahun ajaran aktif.
-- `exam_sessions.expires_at` menjadi sumber kebenaran timer ujian di server.
-- `audit_logs.entity_type` dan `entity_id` bersifat polymorphic ringan untuk mencatat perubahan data penting.
+- `users.username` is unique together with `users.role`, allowing a student and that student's parent to use the same NISN while remaining separate accounts.
+- Application-level soft deletion uses `is_deleted` on users, academic years, classes, teachers, parents, students, courses, subjects, and teaching assignments. These are not Laravel `deleted_at` soft deletes.
+- `parents.student_id` is a unique primary-child relation used by the current parent dashboard. The `parent_student` pivot remains in the schema.
+- `courses.teaching_assignment_id`, `academic_year_id`, and `class_room_id` are nullable for compatibility with existing courses; new teacher-created courses use a teaching assignment.
+- `exam_sessions` use an attempt number and the server-side `expires_at` timestamp. `assessment_drafts` stores answer JSON for the automatic expired-exam submission process.

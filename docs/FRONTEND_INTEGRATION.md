@@ -1,293 +1,197 @@
-# Integrasi Frontend (Vercel) dengan Backend (Wasmer)
+# Next.js/Vercel integration and Wasmer deployment
 
-Dokumen ini menggantikan alur clone dan menjalankan backend di komputer anggota frontend. Backend Laravel dideploy satu kali di Wasmer; frontend Next.js dideploy sendiri di Vercel lalu memanggil URL API Wasmer melalui HTTPS.
+This guide connects an independently deployed Next.js frontend to the LMS-SMP Laravel API. It is based on the checked-in Laravel and Wasmer configuration. Statements about runtime behavior are marked **Requires verification** unless they can be established from source files.
 
-```text
-Browser → Frontend Next.js (Vercel) → API Laravel (Wasmer) → MySQL Wasmer
-                                             └──────────→ volume persisten (unggahan)
-```
+## API base URL
 
-Gunakan contoh URL berikut hanya sebagai placeholder:
-
-```text
-Backend:  https://lms-api-<owner>.wasmer.app
-Frontend: https://lms-web.vercel.app
-```
-
-Jangan menyimpan `APP_KEY`, password, token, atau kredensial database di Git maupun pada environment variable `NEXT_PUBLIC_*`.
-
-## Tanggung jawab
-
-| Pihak | Tanggung jawab |
-| --- | --- |
-| Backend | Deploy Wasmer, database, migrasi, secret Laravel, storage, dan CORS. |
-| Frontend | Deploy Next.js ke Vercel dan mengisi URL API yang diberikan backend. |
-| Bersama | Menguji login, request Bearer token, CORS, serta unggahan dari domain produksi. |
-
-## Deploy backend Laravel di Wasmer
-
-### 1. Siapkan penyimpanan produksi
-
-Konfigurasi lokal proyek ini menggunakan SQLite dan filesystem lokal. Jangan gunakan keduanya sebagai penyimpanan produksi pada runtime edge yang stateless. Gunakan database MySQL terkelola Wasmer dan volume persisten untuk unggahan.
-
-Buat `wasmer.toml` di akar repository backend:
-
-```toml
-[dependencies]
-"php/php" = "=8.3.4"
-
-[fs]
-"/app/" = "."
-"/config/" = "config"
-
-[[command]]
-name = "run"
-module = "php/php:php"
-runner = "wasi"
-
-[command.annotations.wasi]
-main-args = ["-t", "/app/public", "-S", "localhost:8080"]
-env = ["PHPRC=/config/"]
-```
-
-Buat `config/php.ini`. Limit ini sesuai dengan validasi unggahan aplikasi yang dapat menerima hingga 50 MB.
-
-```ini
-display_errors = Off
-log_errors = On
-upload_max_filesize = 50M
-post_max_size = 55M
-max_execution_time = 120
-opcache.validate_timestamps = 0
-opcache.file_update_protection = 0
-opcache.max_file_size = 0
-```
-
-Setelah deploy pertama menghasilkan nama package, commit `app.yaml` berikut dengan nilai placeholder diganti. Wasmer akan mengisi `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, dan `DB_PASSWORD` untuk capability database.
-
-```yaml
-kind: wasmer.io/App.v0
-name: lms-api
-package: <namespace-wasmer>/<nama-package>
-env:
-  APP_ENV: production
-  APP_DEBUG: "false"
-  APP_URL: https://lms-api-<owner>.wasmer.app
-  DB_CONNECTION: mysql
-  CACHE_STORE: database
-  SESSION_DRIVER: database
-  QUEUE_CONNECTION: sync
-  FILESYSTEM_DISK: public
-  CORS_ALLOWED_ORIGINS: https://lms-web.vercel.app
-capabilities:
-  database:
-    engine: mysql
-  instaboot:
-    requests:
-      - path: /up
-locality:
-  regions:
-    - fr-roub1
-volumes:
-  - name: lms-uploads
-    mount: /app/storage/app/public
-scaling:
-  mode: single_concurrency
-```
-
-Pilih region database yang tersedia dan dekat dengan pengguna; `fr-roub1` di atas hanya contoh. Aplikasi Laravel ini menyediakan health check publik pada `/up`. Volume pada `/app/storage/app/public` membuat disk Laravel `public` tetap persisten. Sebelum deployment, buat `public/storage` melalui `php artisan storage:link` dan pastikan symbolic link itu ada dalam artefak/package deployment; membuatnya hanya dalam sesi SSH tidak akan bertahan pada release berikutnya.
-
-### 2. Instal, login, dan deploy
-
-Di PowerShell pemilik backend:
-
-```powershell
-iwr https://win.wasmer.io -useb | iex
-wasmer login
-wasmer --version
-wasmer run .
-wasmer deploy
-```
-
-`wasmer deploy` memandu pemilihan owner, nama aplikasi, dan publikasi package. Simpan URL `.wasmer.app` yang tampil. Setelah `app.yaml` dilengkapi dengan package dan domain yang sesungguhnya, deploy ulang:
-
-```powershell
-wasmer deploy
-```
-
-Pastikan `composer.lock` ikut di-commit agar dependency produksi konsisten.
-
-### 3. Simpan secret dan jalankan migrasi
-
-Hasilkan `APP_KEY` satu kali lalu simpan output sebagai secret Wasmer. Jangan menggantinya saat redeploy.
-
-```powershell
-php artisan key:generate --show
-wasmer app secrets create APP_KEY "base64:<output-key-di-atas>"
-```
-
-Jalankan migrasi terhadap database produksi **sekali**, dari environment yang menerima variable database Wasmer:
-
-```powershell
-wasmer ssh --app lms-api
-```
-
-Di sesi aplikasi, dari `/app`, jalankan:
-
-```bash
-php artisan migrate --force
-php artisan db:seed --force
-```
-
-SSH aplikasi membutuhkan paket/izin Wasmer yang mendukungnya. Bila tidak tersedia, gunakan fasilitas job pre-deployment atau maintenance resmi pada paket Wasmer Anda; jangan menjalankan migrasi ke database lokal sebagai pengganti. Jangan gunakan `migrate:fresh` di produksi. Jalankan seeder hanya bila aman untuk dijalankan ulang dan memang diperlukan untuk data awal.
-
-### 4. Validasi backend
-
-```powershell
-curl.exe -i https://lms-api-<owner>.wasmer.app/up
-```
-
-Periksa log Wasmer bila respons `500`. Sebelum frontend dipakai, backend harus memiliki `APP_DEBUG=false`, secret `APP_KEY`, database yang telah dimigrasi, dan URL production Vercel pada CORS.
-
-## Konfigurasi frontend
-
-Setel URL backend pada environment frontend. Jangan akhiri nilai dengan garis miring.
+Use exactly one `/api` segment. Set this Vercel environment variable for the production frontend:
 
 ```env
-NEXT_PUBLIC_API_URL=https://lms-api-<owner>.wasmer.app/api
+NEXT_PUBLIC_API_URL=https://lms-smp-backend.wasmer.app/api
 ```
 
-Nilai harus mencakup `/api`, memakai HTTPS, dan **tidak** diakhiri garis miring. `NEXT_PUBLIC_` membuat URL ini tersedia di browser; karena itu jangan memakai prefix ini untuk rahasia apa pun.
+Do not append `/api` again when building endpoint paths. For example, `${baseUrl}/auth/login` is correct. `NEXT_PUBLIC_*` variables are visible to browser code: never put passwords, database values, `APP_KEY`, or tokens in them.
 
-Untuk pengembangan frontend lokal (opsional), anggota frontend cukup membuat `.env.local` di repository Next.js sendiri:
+For a local backend, use `http://127.0.0.1:8000/api` instead.
 
-```env
-NEXT_PUBLIC_API_URL=https://lms-api-<owner>.wasmer.app/api
-```
+## Authentication
 
-## Autentikasi
+The API uses Laravel Sanctum personal-access tokens, sent in an `Authorization: Bearer <token>` header. There is no registration endpoint in `routes/api.php`.
 
-Gunakan `POST /auth/student/login` untuk siswa, `POST /auth/parent/login` untuk orang tua, dan `POST /auth/staff/login` untuk guru/admin. Siswa dan orang tua memakai NISN anak yang sama; pemisahan endpoint mencegah ambiguitas role.
+| Endpoint | Intended role | Request fields |
+| --- | --- | --- |
+| `POST /auth/login` | Any | `username`, `password`, `role`; optional `remember`, `device_name` |
+| `POST /auth/student/login` | Student | `username`, `password`; optional `remember`, `device_name` |
+| `POST /auth/parent/login` | Parent | Same as student login |
+| `POST /auth/staff/login` | Admin or teacher | `username`, `password`, `role` (`admin` or `teacher`); optional `remember`, `device_name` |
+| `GET /me` | Authenticated user | No body |
+| `PUT /auth/password` | Authenticated user | `current_password`, `password`, `password_confirmation` |
+| `POST /auth/logout` | Authenticated user | No body |
 
-```json
-{
-  "username": "G001",
-  "password": "GuruDev!2026",
-  "role": "teacher",
-  "remember": true,
-  "device_name": "frontend-web"
+Successful login returns `{ token, token_type, must_change_password, user }`. Send the token on every protected request. If `must_change_password` is `true`, direct the user to password change before calling role endpoints; their API access is restricted by `force.password` middleware.
+
+The token is a credential. Prefer a secure storage strategy appropriate to the frontend threat model; if browser storage is used, protect against XSS and remove the token on logout. This API does not use cross-site session cookies, so `credentials: 'include'` is not required.
+
+## Client examples
+
+### Fetch
+
+```ts
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+export async function login(username: string, password: string, role: string) {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, role, device_name: 'nextjs-web' }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw body;
+  return body as { token: string; must_change_password: boolean; user: unknown };
+}
+
+export async function api<T>(path: string, token: string, init: RequestInit = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...init.headers },
+  });
+  if (response.status === 204) return undefined as T;
+  const body = await response.json();
+  if (!response.ok) throw body;
+  return body as T;
 }
 ```
 
-Simpan `token` dari respons, kemudian kirimkan pada setiap endpoint terlindungi:
+### Upload
 
-```http
-Authorization: Bearer <token>
-Accept: application/json
+Do not set `Content-Type` manually for `FormData`; the browser supplies the multipart boundary.
+
+```ts
+const form = new FormData();
+form.append('title', 'Linear equations');
+form.append('type', 'pdf');
+form.append('target_grade', '7');
+form.append('file', selectedFile);
+
+await api('/teacher/sections/12/materials', token, { method: 'POST', body: form });
 ```
 
-Jika `must_change_password` bernilai `true`, arahkan pengguna ke form ubah password dan panggil `PUT /auth/password` dengan `current_password`, `password`, serta `password_confirmation` sebelum membuka endpoint dashboard per role.
+For assessment answer files, submit to `POST /student/assessments/{assessmentId}/submit` and append each file as `files[{questionId}]`. See [API_CONTRACT.md](API_CONTRACT.md) for every endpoint and field.
 
-## Assessment dan keamanan ujian
+## Error handling
 
-Respons assessment memuat `require_fullscreen`, `anti_copy_paste`, `duration_minutes`, dan `remaining_seconds`. Next.js perlu menerapkan Fullscreen API serta memblokir copy/paste, selection, dan shortcut clipboard bila flag terkait bernilai `true`; backend tetap menjadi sumber waktu dan penentu submit.
+Always check the HTTP status before using a response. Laravel validation errors use status `422` and normally contain `message` and per-field `errors`:
 
-Simpan jawaban teks secara berkala dengan `PUT /student/assessments/{assessment}/draft` berisi `{ "answers": { "question_id": "jawaban" } }`. Draft digunakan saat scheduler backend melakukan auto-submit ujian yang kedaluwarsa. Untuk jawaban unggahan, kirim `multipart/form-data` ke endpoint submit dengan field `files[<questionId>]`.
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "username": ["The username field is required."]
+  }
+}
+```
 
-Gunakan `is_read_only` pada detail course dan `can_attempt` pada detail assessment untuk menonaktifkan aksi pengerjaan pada materi/tugas historis.
+Expected status handling:
 
-## CORS untuk domain Vercel
+| Status | Meaning | Frontend action |
+| --- | --- | --- |
+| `401` | Missing, expired, or invalid token | Clear token and return to login |
+| `403` | Role/ownership/business rule denies the action | Show a permission or rule message; do not retry automatically |
+| `404` | Route or model was not found | Refresh stale resource state or show not found |
+| `409` | An assessment attempt was already submitted | Refresh the assessment/submission state |
+| `422` | Validation or domain validation failed | Render `errors` next to inputs when available |
+| `500` | Unexpected server failure | Show a generic failure; never expose server details to users |
 
-Tambahkan origin frontend production ke `CORS_ALLOWED_ORIGINS` pada konfigurasi Wasmer backend, dipisahkan dengan koma bila ada custom domain. Origin hanya berisi skema dan domain: tanpa `/api` dan tanpa trailing slash.
+The exact text of framework-generated errors can vary with Laravel locale/configuration. API consumers should use status codes and field keys rather than matching messages.
+
+## CORS
+
+`config/cors.php` applies CORS to `api/*`, allows all methods and request headers, exposes no special headers, and sets `supports_credentials` to `false`. Permitted origins come from the comma-separated backend variable `CORS_ALLOWED_ORIGINS`.
+
+Before the production Vercel frontend can call the API, configure the exact Vercel production origin in Wasmer, for example:
 
 ```env
-CORS_ALLOWED_ORIGINS=https://lms-web.vercel.app,https://app.sekolah.example
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
 ```
 
-Setelah mengubah `app.yaml`, deploy ulang:
+Use an origin only (scheme and host): no `/api`, path, or trailing slash. Multiple origins are comma-separated. Source code confirms this configuration mechanism, but successful production CORS behavior is **Requires verification** against the final Vercel domain. Preview deployments have different domains and must be added explicitly if they need API access.
 
-```powershell
-wasmer deploy
-```
+## File storage
 
-Jangan gunakan `*` di produksi. Vercel Preview memiliki domain berbeda setiap deployment; gunakan domain production yang stabil untuk integrasi utama. Jika preview perlu diuji terhadap API produksi, tambahkan origin preview tertentu sementara lalu hapus setelah selesai.
+The Laravel `public` disk stores files in `storage/app/public`; `FILESYSTEM_DISK=public` selects it. Material uploads are stored in `materials/`; uploaded assessment answers are stored in `assessment-answers/`. The API returns stored relative paths, not a guaranteed absolute public URL. Constructing a browser URL requires that `public/storage` correctly links to the disk and that `APP_URL` is the backend public URL.
 
-## Deploy frontend Next.js ke Vercel
+The Wasmer manifest declares the `lms-uploads` persistent volume mounted at `/app/storage/app/public`. This is configuration evidence only. Public-link availability and persistence after a real upload require verification after deployment.
 
-Anggota frontend mengerjakan langkah ini dari repository Next.js, tanpa repository backend.
+Allowed upload policy enforced by `UploadPolicy`:
 
-1. Push repository frontend ke GitHub, GitLab, atau Bitbucket.
-2. Di Vercel pilih **Add New → Project**, lalu import repository tersebut.
-3. Pastikan Framework Preset terdeteksi sebagai **Next.js**. Pada monorepo, pilih Root Directory yang berisi `package.json` Next.js.
-4. Buka **Settings → Environment Variables**, lalu tambahkan variable berikut untuk **Production**:
-
-   | Nama | Nilai |
-   | --- | --- |
-   | `NEXT_PUBLIC_API_URL` | `https://lms-api-<owner>.wasmer.app/api` |
-
-5. Deploy dan catat domain production Vercel, misalnya `https://lms-web.vercel.app`.
-6. Berikan domain tersebut kepada pemilik backend. Backend memasukkannya ke `CORS_ALLOWED_ORIGINS` dan menjalankan `wasmer deploy`.
-7. Uji dari domain Vercel setelah backend selesai redeploy.
-
-Perubahan environment variable Vercel hanya diterapkan pada deployment baru; lakukan **Redeploy** setiap kali `NEXT_PUBLIC_API_URL` diubah.
-
-Alternatif CLI dari akar repository frontend:
-
-```powershell
-npm install -g vercel
-vercel login
-vercel
-vercel env add NEXT_PUBLIC_API_URL production
-vercel --prod
-```
-
-Saat `vercel env add`, masukkan URL Wasmer lengkap dengan `/api`. Jangan membuat proxy API yang meneruskan kredensial/token kecuali memang diperlukan; request browser langsung ke Wasmer sudah didukung oleh konfigurasi CORS API ini.
-
-## Axios (Next.js)
-
-```js
-import axios from 'axios';
-
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: { Accept: 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-```
-
-Gunakan [kontrak API](API_CONTRACT.md) sebagai daftar request dan payload yang siap diuji.
-
-## Checklist integrasi sebelum rilis
-
-- [ ] `NEXT_PUBLIC_API_URL` memakai `https://<backend-wasmer>/api`, bukan `localhost`, tunnel, atau URL dengan trailing slash.
-- [ ] `APP_KEY` berada di Wasmer Secrets; `APP_DEBUG=false`; tidak ada secret dalam Git atau variable `NEXT_PUBLIC_*`.
-- [ ] `DB_CONNECTION=mysql` dan migrasi produksi sudah sukses tanpa `migrate:fresh`.
-- [ ] Domain production Vercel persis sama dengan salah satu nilai `CORS_ALLOWED_ORIGINS`.
-- [ ] Login dari domain Vercel tidak menghasilkan error CORS di Browser DevTools.
-- [ ] Request terlindungi mengirim `Authorization: Bearer <token>`; tanpa token menghasilkan `401`.
-- [ ] Satu akun dari setiap role dapat login dan membuka data yang diizinkan.
-- [ ] Unggahan diuji setelah backend redeploy untuk memastikan file tersimpan pada volume persisten.
-
-## Troubleshooting
-
-| Gejala | Penyebab umum | Perbaikan |
+| Category | Extensions | Maximum size |
 | --- | --- | --- |
-| Error CORS di browser | Origin Vercel tidak sama persis dengan konfigurasi backend. | Tambahkan `https://<domain-vercel>` ke `CORS_ALLOWED_ORIGINS`, lalu `wasmer deploy`. |
-| Frontend masih meminta `localhost` | Env Vercel belum diisi atau deployment lama masih aktif. | Set `NEXT_PUBLIC_API_URL` di Production dan redeploy Vercel. |
-| Backend `500` | Secret, DB, dependency, atau migrasi belum siap. | Periksa log Wasmer; validasi `APP_KEY`, `DB_CONNECTION=mysql`, dan status migrasi tanpa membocorkan secret. |
-| Data/file hilang setelah deploy | SQLite atau filesystem runtime dipakai. | Gunakan managed database serta volume Wasmer pada path storage. |
-| File upload ditolak | Limit HTTP PHP lebih kecil dari validasi Laravel. | Pastikan `config/php.ini` ter-mount lewat `PHPRC`, kemudian redeploy. |
-| Preview Vercel gagal CORS | Domain Preview berbeda dari Production. | Uji lewat production atau tambahkan origin preview spesifik sementara. |
+| Image | `jpg`, `jpeg`, `png`, `gif`, `webp` | 5 MB |
+| PDF | `pdf` | 10 MB |
+| Audio | `mp3`, `wav`, `m4a`, `aac`, `ogg` | 15 MB |
+| Video | `mp4`, `mov`, `avi`, `webm`, `mkv` | 50 MB |
 
-## Referensi resmi
+The Laravel validation layer also caps a submitted material/answer file at 50 MB. On Wasmer, `wasmer-config/php.ini` sets `upload_max_filesize=55M` and `post_max_size=60M`.
 
-- [Deploy Laravel di Wasmer Edge](https://docs.wasmer.io/edge/guides/laravel/)
-- [Konfigurasi aplikasi, database, dan volume Wasmer](https://docs.wasmer.io/edge/configuration/)
-- [Volume persisten Wasmer](https://docs.wasmer.io/edge/guides/volumes/)
-- [Environment variables Vercel](https://vercel.com/docs/environment-variables)
-- [Deployment environment Vercel](https://vercel.com/docs/deployments/environments)
+## Wasmer deployment and database
+
+The checked-in manifest identifies an existing Wasmer application:
+
+| Item | Configured value |
+| --- | --- |
+| Application | `aureliusdavian/lms-smp-backend` |
+| Public URL | `https://lms-smp-backend.wasmer.app` |
+| Region | `fr-roub1` |
+| Runtime | `php/php-64` `=8.3.2102`, WASIX runner |
+| Server command | PHP serves `/app/public` on `0.0.0.0:8080` |
+| PHP configuration | `PHPRC=/config/`, mounted from `wasmer-config` |
+| Database capability | Wasmer managed MySQL |
+| Upload volume | `lms-uploads` at `/app/storage/app/public` |
+
+`app.yaml` configures the Wasmer application/capabilities; `wasmer.toml` configures the PHP package and entry command. They should be changed only when deployment requirements change.
+
+Laravel reads the MySQL database name from `DB_DATABASE`, with `DB_NAME` only as a fallback. Configure secrets/environment variables in Wasmer, not in Git:
+
+```env
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=<generated-secret>
+APP_URL=https://lms-smp-backend.wasmer.app
+DB_CONNECTION=mysql
+DB_HOST=<managed-host>
+DB_PORT=<managed-port>
+DB_DATABASE=<managed-database-name>
+DB_USERNAME=<managed-user>
+DB_PASSWORD=<managed-password>
+FILESYSTEM_DISK=public
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+Do not put any backend secret in a Vercel `NEXT_PUBLIC_*` variable, and never connect the browser directly to MySQL.
+
+### Migrations and seeders without application SSH
+
+The reported deployment context states that production migrations were run from a local computer using environment variables targeting Wasmer MySQL. The source code cannot independently prove that history. If an approved operator must run future migrations without application SSH:
+
+1. Obtain the current managed MySQL connection values through the approved Wasmer secret/database workflow.
+2. Set those values only in the operator's process environment or a protected, untracked local configuration.
+3. Confirm the target database and take the normal operational backup/maintenance precautions.
+4. Run `php artisan migrate --force` from the repository root.
+5. Verify migration status with `php artisan migrate:status` against the same target.
+
+`php artisan db:seed --force` is a separate data-write operation. Run it only when initial/demo data is intentionally needed and the seeder's idempotent behavior has been reviewed. Never use `migrate:fresh` on the managed production database.
+
+### Deployment workflow and verification
+
+The reported Wasmer application status and manual/package deployment history are external information, not verifiable from repository files. GitHub automatic deployment is **not verified** and should not be assumed; the reported OAuth redirect error remains an external configuration issue.
+
+For an approved manual release, review source/configuration, deploy through the authorized Wasmer workflow, then verify `/up`, API reachability, database access, CORS, login, public storage, upload persistence, and scheduler operation. This documentation task does not deploy, migrate, seed, or change Wasmer secrets.
+
+## Release checklist
+
+- [ ] `NEXT_PUBLIC_API_URL` is `https://lms-smp-backend.wasmer.app/api` with no trailing slash.
+- [ ] Wasmer has `APP_DEBUG=false`, a secret `APP_KEY`, MySQL variables, and `FILESYSTEM_DISK=public`.
+- [ ] `CORS_ALLOWED_ORIGINS` includes the exact final Vercel origin.
+- [ ] Managed MySQL migration status is confirmed; seeding was performed only if intended.
+- [ ] `/up`, login, role access, CORS, and upload persistence have been tested against production.
+- [ ] A scheduler/worker arrangement is confirmed for the every-minute expired-exam command.

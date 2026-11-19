@@ -1,117 +1,196 @@
-# Kontrak API SMP LMS
+# LMS-SMP API contract
 
-Kontrak ini bersumber dari `routes/api.php` dan controller API. Base URL: `{BASE_URL}/api`. Semua payload/respons JSON kecuali endpoint file; selalu kirim `Accept: application/json`.
+Source of truth: `routes/api.php` and `app/Http/Controllers/Api`. Base URL is `{BASE_URL}/api` (`https://lms-smp-backend.wasmer.app/api` in production). Send `Accept: application/json` for every request. JSON is used unless an endpoint accepts a file.
 
-## Konvensi
+## Cross-cutting rules
 
-- Selain login, endpoint memerlukan `Authorization: Bearer {token}`.
-- Peran: `admin`, `teacher`, `student`, `parent`. Endpoint peran mensyaratkan `must_change_password=false`; sebelum itu pengguna hanya dapat memakai `GET /me`, `PUT /auth/password`, dan logout.
-- Token tanpa `remember: true` berlaku satu hari. Login dibatasi lima request per menit.
-- ID pada path adalah ID numerik resource. Gunakan ISO 8601 untuk waktu dan boolean JSON untuk flag.
-- Sukses list/detail: `200` `{ "data": ... }`; create: `201`; aksi tanpa body: `204`. Error umum: `401` token tidak valid, `403` tidak berwenang/aturan bisnis, `404` tidak ditemukan, `409` percobaan sudah terkumpul, `422` validasi gagal.
-- Error validasi berbentuk `{ "message": "...", "errors": { "field": ["..."] } }`. List belum dipaginasi.
+- Protected endpoints require `Authorization: Bearer {token}`. Tokens are issued by Laravel Sanctum.
+- All role routes also use `force.password`. A user whose `must_change_password` is true must first call `PUT /auth/password`; `GET /me` and logout remain available.
+- `POST /auth/*/login` routes are throttled to five requests per minute.
+- A login token expires after one day unless `remember: true` is supplied; the latter creates a token without an application-set expiry.
+- List and detail responses normally use `{ "data": ... }`; create requests use `201`; no-content actions use `204`. Lists are not paginated.
+- Standard failures are `401` (unauthenticated), `403` (forbidden or business rule), `404` (route/model not found), `409` (duplicate submitted attempt), and `422` (validation). Error message text is not a stable contract.
+- Model objects are serialised by Eloquent. Clients must tolerate standard attributes such as `id`, `created_at`, and `updated_at` in addition to documented relationships.
 
-## Autentikasi
+## Authentication and current user
 
-| Method & path | Akses | Request | Respons sukses |
-| --- | --- | --- | --- |
-| `POST /auth/login` | Publik | `username`, `password`, `role` (`admin\|student\|teacher\|parent`); opsional `remember`, `device_name` | `200` `{token, token_type:"Bearer", must_change_password, user}` |
-| `POST /auth/student/login` | Publik | `username`, `password`; opsional `remember`, `device_name` | Sama; role `student` |
-| `POST /auth/parent/login` | Publik | Sama | Sama; role `parent` |
-| `POST /auth/staff/login` | Publik | `username`, `password`, `role` (`admin\|teacher`); opsional `remember`, `device_name` | Sama |
-| `GET /me` | Token | — | `200` `{user}` |
-| `PUT /auth/password` | Token | `current_password`, `password` (min. 8), `password_confirmation` | `200` `{message}`; menonaktifkan kewajiban ganti password |
-| `POST /auth/logout` | Token | — | `204`; mencabut token saat ini |
+| Method | Endpoint | Auth / role | Request body | Success response |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/login` | Public | `username` string, `password` string, `role`: `admin`, `student`, `teacher`, or `parent`; optional `remember` boolean, `device_name` string (max 100) | `200` login object |
+| POST | `/auth/student/login` | Public | `username`, `password`; optional `remember`, `device_name` | `200` login object; student role forced |
+| POST | `/auth/parent/login` | Public | Same as student login | `200` login object; parent role forced |
+| POST | `/auth/staff/login` | Public | `username`, `password`, `role`: `admin` or `teacher`; optional `remember`, `device_name` | `200` login object |
+| GET | `/me` | Token | — | `200` `{ "user": user }` |
+| PUT | `/auth/password` | Token | `current_password`, `password` (min 8), `password_confirmation` | `200` `{ "message": "Password berhasil diubah." }` |
+| POST | `/auth/logout` | Token | — | `204`; deletes only the current token |
 
-`user` memuat `id`, `name`, `username`, `email`, `role`, `must_change_password`, `is_active`, serta profil relevan (`student`, `teacher`, atau `parent_profile`). Kredensial salah menghasilkan `422`.
-
-## Admin
-
-Seluruh endpoint memerlukan role `admin`.
-
-| Method & path | Request utama | Respons |
-| --- | --- | --- |
-| `GET /admin/dashboard` | — | Jumlah data, tahun aktif, kelas, alert |
-| `GET, POST /admin/teachers` | POST: `name`, `email`, `password`, `password_confirmation`, `employee_no`; opsional `phone` | List / `201` |
-| `PUT, DELETE /admin/teachers/{teacher}` | PUT: `name`, `email`, `employee_no`; opsional `phone` | Data terbaru / `204` soft delete |
-| `GET, POST /admin/students` | POST: `name`, `nisn` (10 digit), `birth_date`, `cohort_year`; opsional `class_room_id` | List / `201` |
-| `PUT, DELETE /admin/students/{student}` | PUT: `name`, `nisn` (10 digit), `birth_date` (`Y-m-d`), `cohort_year`; opsional `class_room_id` | Data terbaru / `204` soft delete |
-| `POST /admin/students/{student}/reset-password` | — | `200`; password direset ke tanggal lahir `YYYYMMDD` |
-| `POST /admin/students/import` | Multipart: `file` XLSX, maks. 10 MB | `201` `{message, imported}` atau `422` `{failures}` |
-| `GET, POST /admin/parents` | POST: `name`, `student_id`; opsional `phone`, `address` | List / `201` |
-| `PUT, DELETE /admin/parents/{parent}` | PUT: `name`, `student_id`; opsional `phone`, `address` | Data terbaru / `204` soft delete |
-| `GET, POST /admin/classes` | POST: `name`, `grade_level` (7/8/9), `academic_year_id` | List / `201` |
-| `PUT, DELETE /admin/classes/{classRoom}` | PUT: `name`, `grade_level` (7/8/9), `academic_year_id`; opsional `is_active` | Data terbaru / `204` soft delete |
-| `GET, POST /admin/academic-years` | POST: `name`, `start_year` | List / `201` |
-| `PUT, DELETE /admin/academic-years/{academicYear}` | PUT: `name` (`YYYY/YYYY`), `start_year` | Data terbaru / `204` soft delete |
-| `POST /admin/academic-years/{academicYear}/activate` | — | `200` tahun ajaran aktif terbaru |
-| `GET, POST /admin/subjects` | POST: `code`, `name` | List / `201` |
-| `PUT, DELETE /admin/subjects/{subject}` | PUT: `code`, `name` | Data terbaru / `204` soft delete |
-| `GET, POST /admin/teaching-assignments` | POST: `teacher_id`, `subject_id`, `academic_year_id`, `class_room_id`, `grade_level` (7/8/9) | List / `201` |
-| `PUT, DELETE /admin/teaching-assignments/{teachingAssignment}` | PUT: field yang sama seperti POST | Data terbaru / `204` soft delete |
-
-Setiap ID relasi harus ada. Kelas pada teaching assignment wajib memiliki tingkat dan tahun ajaran yang sama dengan `grade_level` dan `academic_year_id`; pelanggaran menghasilkan `422`.
-
-## Guru
-
-Seluruh endpoint memerlukan role `teacher`; guru hanya dapat mengelola course dan turunan miliknya.
-
-| Method & path | Request utama | Respons / aturan |
-| --- | --- | --- |
-| `GET /teacher/dashboard` | — | Course guru dan jumlah submission perlu dinilai |
-| `GET /teacher/courses` | — | Daftar course guru |
-| `POST /teacher/courses` | `teaching_assignment_id`; opsional `name`, `description` | `201`; penugasan harus milik guru aktif |
-| `GET /teacher/courses/{course}` | — | Course, section, materi, assessment, soal, opsi |
-| `PUT /teacher/courses/{course}` | `name`; opsional `description`, `is_active` | Course terbaru |
-| `DELETE /teacher/courses/{course}` | — | `204`; soft delete/nonaktif |
-| `POST /teacher/courses/{course}/sections` | `title` | `201`; posisi ditentukan server |
-| `POST /teacher/sections/{section}/materials` | `title`, `type` (`text\|pdf\|video\|audio\|file`), `target_grade` (7/8/9); opsional `body`, `file_path`, `file` | `201`; multipart jika file. Selain `text`, file atau URL wajib ada. |
-| `POST /teacher/sections/{section}/assessments` | `title`, `assessment_type` (`practice\|midterm\|final\|daily_exam`), `target_grade`, `is_published`, `duration_minutes` (min. 1), `end_at`; opsional `description`, `is_exam`, `require_fullscreen`, `anti_copy_paste`, `start_at`, `maximum_attempt`, `passing_score` | `201`; `end_at` harus sesudah sekarang dan `start_at` bila ada |
-| `POST /teacher/assessments/{assessment}/questions` | `type`, `prompt`, `points` (0–100); opsional `correct_answer`, `options` | `201` soal dan opsi |
-| `GET /teacher/submissions` | — | Submission, siswa, assessment, jawaban |
-| `POST /teacher/submissions/{submission}/grade` | `score` (0–100, tidak melebihi total poin); opsional `feedback` | Submission bernilai |
-
-`multiple_choice` membutuhkan minimal dua `options` (`{text, is_correct}`) dengan tepat satu jawaban benar. `true_false` membutuhkan `correct_answer` bernilai `true`/`false`. Soal `essay` dan `file_upload` perlu nilai manual.
-
-## Siswa
-
-Seluruh endpoint memerlukan role `student`.
-
-| Method & path | Request utama | Respons / aturan |
-| --- | --- | --- |
-| `GET /student/dashboard` | — | Siswa, kelas, tingkat yang diharapkan, kebutuhan update kelas, course terlihat |
-| `GET /student/courses` | — | Course terlihat dan `expected_grade` |
-| `POST /student/courses/{course}/enroll` | — | `200`; hanya course aktif yang dapat diakses |
-| `GET /student/courses/{course}` | — | Course, materi, assessment published, `is_read_only` untuk tahun lama |
-| `POST /student/materials/{material}/complete` | — | `200`; menyimpan progres |
-| `GET /student/assessments/{assessment}` | — | Assessment tanpa kunci opsi, `can_attempt`, dan (untuk ujian) `exam_session`, `remaining_seconds` |
-| `PUT /student/assessments/{assessment}/draft` | `answers` object (`{questionId: value}`) | `204`; hanya ketika masih boleh mencoba |
-| `POST /student/assessments/{assessment}/submit` | Opsional `answers` object, `files` array | `201`; gunakan multipart untuk file, key `files[{questionId}]` |
-| `POST /student/exam-sessions/{examSession}/logs` | `event`; opsional `detail` | `204`; hanya sesi aktif milik siswa yang belum habis |
-| `GET /student/profile` | — | Kelas yang dapat dipilih, pertanyaan profiling, rekomendasi |
-| `PUT /student/profile/class` | `class_room_id` | Siswa terbaru; kelas harus aktif dan sesuai tingkat/tahun aktif |
-| `PUT /student/profile/profiling` | `answers` object; setiap nilai integer 1–5 | `200` |
-
-Assessment hanya dapat dikerjakan pada jadwal aktif dan dalam batas `maximum_attempt`. Membuka assessment ujian memulai/melanjutkan sesi di server; frontend harus memakai `remaining_seconds` untuk tampilan dan tidak menjadikan timer klien sebagai sumber kebenaran. Submit setelah waktu habis ditolak; draft dipakai ketika service auto-submit memproses sesi kadaluarsa.
-
-## Orang tua
-
-| Method & path | Akses | Respons |
-| --- | --- | --- |
-| `GET /parent/dashboard` | `parent` | Anak yang terhubung, progres per course, submission, dan alert nilai tertunda |
-
-Implementasi saat ini menghubungkan satu profil orang tua ke satu siswa.
-
-## Contoh submit
+Login example:
 
 ```json
 {
-  "answers": {
-    "12": "34",
-    "13": "true",
-    "14": "Penjelasan jawaban."
+  "username": "T001",
+  "password": "example-password",
+  "role": "teacher",
+  "device_name": "nextjs-web",
+  "remember": false
+}
+```
+
+Successful login shape:
+
+```json
+{
+  "token": "1|sanctum-token-value",
+  "token_type": "Bearer",
+  "must_change_password": false,
+  "user": {
+    "id": 8,
+    "name": "Example Teacher",
+    "username": "T001",
+    "email": "teacher@example.test",
+    "role": "teacher",
+    "must_change_password": false,
+    "is_active": true,
+    "student": null,
+    "teacher": { "id": 2, "user_id": 8, "employee_no": "T001" },
+    "parent_profile": null
   }
 }
 ```
 
-Untuk file, gunakan `multipart/form-data` dan tambahkan `files[14]`. Jangan pernah mengirim atau mengandalkan `is_correct` dari client siswa.
+## Admin API
+
+All endpoints below require an authenticated `admin`. `DELETE` endpoints perform the soft-delete behavior implemented by the controller and return `204`.
+
+| Method | Endpoint | Purpose | Request fields / constraints | Response |
+| --- | --- | --- | --- | --- |
+| GET | `/admin/dashboard` | Dashboard counts and alerts | — | `data` with counts, `active_year`, classes, alerts |
+| GET | `/admin/teachers` | List active teachers | — | `data`: teachers with `user` |
+| POST | `/admin/teachers` | Create teacher and user | `name`, unique email, `password` + confirmation (min 8), unique `employee_no`; optional `phone` | `201` `data`: teacher with user |
+| PUT | `/admin/teachers/{teacher}` | Update teacher | `name`, unique `email`, unique `employee_no`; optional `phone` | `data`: updated teacher with user |
+| DELETE | `/admin/teachers/{teacher}` | Soft-delete teacher/user | — | `204` |
+| GET | `/admin/students` | List active students | — | `data`: students with user and class |
+| POST | `/admin/students` | Create student/user | `name`, unique 10-digit `nisn`, `birth_date`, `cohort_year`; optional existing `class_room_id` | `201` `data`: student with user/class |
+| PUT | `/admin/students/{student}` | Update student | `name`, unique 10-digit `nisn`, `birth_date` (`Y-m-d`), `cohort_year`; optional `class_room_id` | `data`: updated student |
+| DELETE | `/admin/students/{student}` | Soft-delete student/user | — | `204` |
+| POST | `/admin/students/{student}/reset-password` | Reset student password | — | `200`; password is birth date formatted `YYYYMMDD` |
+| POST | `/admin/students/import` | Import spreadsheet | multipart `file`: required XLSX, max 10 MB | `201` `{message, imported}`; `422` may include `failures` |
+| GET | `/admin/parents` | List active parent profiles | — | `data`: parent, user, student |
+| POST | `/admin/parents` | Create parent/user | `name`, existing unique `student_id`; optional `phone`, `address` | `201` `data`: parent with user/student |
+| PUT | `/admin/parents/{parent}` | Update parent | `name`, existing unique `student_id`; optional `phone`, `address` | `data`: updated parent |
+| DELETE | `/admin/parents/{parent}` | Soft-delete parent/user | — | `204` |
+| GET | `/admin/classes` | List active classes | — | `data`: classes with `students_count` |
+| POST | `/admin/classes` | Create class | unique `name`, `grade_level` 7/8/9, existing `academic_year_id` | `201` `data`: class |
+| PUT | `/admin/classes/{classRoom}` | Update class | unique `name`, `grade_level` 7/8/9, existing `academic_year_id`; optional boolean `is_active` | `data`: class |
+| DELETE | `/admin/classes/{classRoom}` | Soft-delete class | — | `204` |
+| GET | `/admin/academic-years` | List active records | — | `data`: academic years |
+| POST | `/admin/academic-years` | Create academic year | unique `name`, unique integer `start_year` | `201` `data`: year |
+| PUT | `/admin/academic-years/{academicYear}` | Update academic year | unique `name` matching `YYYY/YYYY`, unique `start_year` | `data`: year |
+| DELETE | `/admin/academic-years/{academicYear}` | Soft-delete year | — | `204` |
+| POST | `/admin/academic-years/{academicYear}/activate` | Activate year | — | `data`: active year, `message` |
+| GET | `/admin/subjects` | List active subjects | — | `data`: subjects |
+| POST | `/admin/subjects` | Create subject | unique `code` (max 50), unique `name` (max 255) | `201` `data`: subject |
+| PUT | `/admin/subjects/{subject}` | Update subject | unique `code`, unique `name` | `data`: subject |
+| DELETE | `/admin/subjects/{subject}` | Soft-delete subject | — | `204` |
+| GET | `/admin/teaching-assignments` | List assignments | — | `data`: assignment with teacher/user, subject, year, class |
+| POST | `/admin/teaching-assignments` | Create assignment | existing `teacher_id`, `subject_id`, `academic_year_id`, `class_room_id`; `grade_level` 7/8/9 | `201` `data`: assignment |
+| PUT | `/admin/teaching-assignments/{teachingAssignment}` | Update assignment | Same required fields as POST | `data`: assignment |
+| DELETE | `/admin/teaching-assignments/{teachingAssignment}` | Soft-delete assignment | — | `204` |
+
+For teaching assignments, the selected class must match the submitted grade and academic year; otherwise the controller returns `422`.
+
+## Teacher API
+
+All endpoints require an authenticated `teacher`. Course, section, assessment, and submission policies restrict access to the owning teacher.
+
+| Method | Endpoint | Purpose | Request fields / constraints | Response |
+| --- | --- | --- | --- | --- |
+| GET | `/teacher/dashboard` | Teacher summary | — | `data`: courses, `need_grading`, alerts |
+| GET | `/teacher/courses` | List owned courses | — | `data`: courses with `students_count` |
+| POST | `/teacher/courses` | Create course from assignment | Required `teaching_assignment_id` owned by teacher; optional `name`, `description` | `201` `data`: course |
+| GET | `/teacher/courses/{course}` | Course authoring detail | — | `data`: course with sections, materials, assessments, questions/options |
+| PUT | `/teacher/courses/{course}` | Update course | `name`; optional `description`, boolean `is_active` | `data`: course |
+| DELETE | `/teacher/courses/{course}` | Soft-delete course | — | `204` |
+| POST | `/teacher/courses/{course}/sections` | Add section | `title` (max 255) | `201` `data`: section; position assigned by server |
+| POST | `/teacher/sections/{section}/materials` | Add material | `title`, `type` (`text`, `pdf`, `video`, `audio`, `file`), `target_grade` 7/8/9; optional `body`, `file_path`, `file` | `201` `data`: material |
+| POST | `/teacher/sections/{section}/assessments` | Add assessment | See assessment fields below | `201` `data`: assessment |
+| POST | `/teacher/assessments/{assessment}/questions` | Add question | See question fields below | `201` `data`: question with options |
+| GET | `/teacher/submissions` | List owned-course submissions | — | `data`: submissions with student, assessment/course, answers/questions |
+| POST | `/teacher/submissions/{submission}/grade` | Manually grade submission | `score` numeric 0–100 and no greater than total question points; optional `feedback` | `data`: refreshed submission |
+
+Material requests containing `file` must be `multipart/form-data`. A non-text material requires either a validated `file` or `file_path`. A PDF/audio/video upload must match the selected type; generic `file` material can use any type allowed by upload policy.
+
+Assessment request fields: `title`, `assessment_type` (`practice`, `midterm`, `final`, `daily_exam`), `target_grade` (7/8/9), boolean `is_published`, `duration_minutes` (integer >=1), and `end_at` (date after now and after `start_at` if supplied). Optional fields are `description`, boolean `is_exam`, `require_fullscreen`, `anti_copy_paste`, `start_at`, `maximum_attempt` (integer >=1), and `passing_score` (numeric >=0).
+
+Question request fields: `type` (`multiple_choice`, `true_false`, `essay`, `file_upload`), `prompt`, `points` (0–100), optional `correct_answer`, and optional `options`. Each option has `text` and optional boolean `is_correct`. Multiple-choice questions need at least two options and exactly one correct option. True/false questions require `correct_answer` equal to `true` or `false`.
+
+## Student API
+
+All endpoints require an authenticated `student`. Course and assessment access is checked against the student's permitted grade/year and applicable business rules.
+
+| Method | Endpoint | Purpose | Request fields / constraints | Response |
+| --- | --- | --- | --- | --- |
+| GET | `/student/dashboard` | Student landing data | — | `data`: student/class, expected grade, class-update flag, visible courses |
+| GET | `/student/courses` | List accessible courses | — | `data`: courses; `expected_grade` |
+| POST | `/student/courses/{course}/enroll` | Enrol in accessible active course | — | `200` `{message}` |
+| GET | `/student/courses/{course}` | Course detail | — | `data`: materials and published assessments; includes `is_read_only` for prior year |
+| POST | `/student/materials/{material}/complete` | Mark material complete | — | `200` `{message}` |
+| GET | `/student/assessments/{assessment}` | Get assessment / start exam | — | `data`: `assessment`, `can_attempt`, `exam_session`, `remaining_seconds` |
+| PUT | `/student/assessments/{assessment}/draft` | Save answer draft | Required `answers` object | `204` |
+| POST | `/student/assessments/{assessment}/submit` | Submit answers | Optional `answers` object and `files` array | `201` `data`: submission |
+| POST | `/student/exam-sessions/{examSession}/logs` | Log exam event | `event` (max 100); optional `detail` | `204` |
+| GET | `/student/profile` | Class and profiling data | — | `data`: available classes, profiling questions, recommendations |
+| PUT | `/student/profile/class` | Change class | Required existing `class_room_id` | `data`: student with class |
+| PUT | `/student/profile/profiling` | Save profiling answers | Required `answers` object; every value integer 1–5 | `200` `{message}` |
+
+The assessment response deliberately hides the `is_correct` field from question options. Opening an exam starts or resumes a server-side exam session when an attempt is allowed. Use `remaining_seconds` only for display; expiration, attempts, and submissions are enforced by the server. Normal submission after a session expires is rejected. File answers use `multipart/form-data` with keys such as `files[42]`; text answers are keyed by question ID:
+
+```json
+{
+  "answers": {
+    "40": "15",
+    "41": "true",
+    "42": "Explanation for an essay answer"
+  }
+}
+```
+
+`POST /student/exam-sessions/{examSession}/logs` accepts only the student's own active, unexpired session. A class update must select an active class matching the computed expected grade and active academic year.
+
+## Parent API
+
+| Method | Endpoint | Auth / role | Purpose | Response |
+| --- | --- | --- | --- | --- |
+| GET | `/parent/dashboard` | Authenticated `parent` | View linked child's course progress and submissions | `data`: `student`, `course_progress`, `submissions`, `alerts` |
+
+The current implementation reads one `student` relation from the parent profile. Frontend UI should not assume multi-child support from this endpoint.
+
+## Upload contract
+
+| Endpoint | Multipart field | Stored disk/path | Allowed extension and maximum |
+| --- | --- | --- | --- |
+| `POST /teacher/sections/{section}/materials` | `file` | `public/materials` | Images: jpg/jpeg/png/gif/webp, 5 MB; PDF: pdf, 10 MB; audio: mp3/wav/m4a/aac/ogg, 15 MB; video: mp4/mov/avi/webm/mkv, 50 MB |
+| `POST /student/assessments/{assessment}/submit` | `files[{questionId}]` | `public/assessment-answers` | Same policy; Laravel field validation also caps each submitted file at 50 MB |
+
+Stored paths are relative storage paths, for example `materials/abc.pdf`; they are not API-generated absolute URLs. Serving them depends on the `public/storage` link and configured `APP_URL`.
+
+## Error examples
+
+Validation failures are returned by Laravel as `422`:
+
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "password": ["The password field confirmation does not match."]
+  }
+}
+```
+
+Invalid login credentials are explicitly returned as:
+
+```json
+{ "message": "Kredensial tidak valid" }
+```
+
+This contract does not invent a custom body for framework-generated `401`, `403`, `404`, or `500` responses; clients must branch on the HTTP status and display a safe generic message when no structured JSON is available.

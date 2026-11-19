@@ -1,105 +1,115 @@
-# SMP LMS
+# LMS-SMP Backend
 
-Backend Learning Management System (LMS) untuk SMP, dengan UI Blade dan REST API untuk frontend terpisah. Dibangun dengan Laravel 12, Sanctum, SQLite/MySQL, Vite, dan Tailwind CSS.
+Laravel backend for the LMS-SMP learning management system. It provides the server-rendered school interface and a Sanctum token API consumed by a separately deployed Next.js frontend. The production backend is hosted on Wasmer Edge at `https://lms-smp-backend.wasmer.app`.
 
-## Fitur
+## Technology stack
 
-- Peran admin, guru, siswa, dan orang tua.
-- Pengelolaan tahun ajaran, kelas, pengguna, mata pelajaran, serta penugasan mengajar.
-- Course, materi, assessment, soal, pengumpulan, penilaian, dan import siswa XLSX.
-- Ujian bertimer server-side, draft jawaban, log aktivitas, profiling, dan riwayat kelas.
+- Laravel 12 and PHP 8.3 (the Composer platform target and Wasmer package runtime)
+- Laravel Sanctum personal-access tokens
+- MySQL for Wasmer production; SQLite is the default local configuration
+- Composer, Vite, Tailwind CSS, and Axios
+- Wasmer Edge with the PHP WASIX runtime
+- An external Next.js frontend, typically deployed on Vercel
 
-## Prasyarat
+## Architecture
 
-- PHP 8.2+ (Composer dikunci ke platform PHP 8.3)
-- Composer 2
-- Node.js 20+ dan npm
-- SQLite untuk lokal atau MySQL untuk produksi
+- `routes/web.php` contains session-authenticated Blade routes; `routes/api.php` contains the `/api` token API.
+- `app/Http/Controllers/Api` implements role-scoped API operations. Laravel request validation is performed in controllers; no Form Request classes or API Resource classes are present.
+- `EnsureRole` and `ForcePasswordChange` enforce role access and initial-password changes. Sanctum protects authenticated API routes.
+- Eloquent models and migrations define the LMS domain: academic years, classes, profiles, courses, assessments, exam sessions, submissions, and grades.
+- `app/Services` contains assessment, exam, academic-year, and upload rules. The exam-expiration command is scheduled every minute in `routes/console.php`; a production scheduler process still requires operational verification.
+- Public uploads use the `public` filesystem disk (`storage/app/public`) and are exposed through `public/storage` after `php artisan storage:link`.
 
-## Menjalankan secara lokal
+## Repository layout
 
-Perintah berikut ditujukan untuk PowerShell.
+| Path | Responsibility |
+| --- | --- |
+| `app/Http/Controllers/Api` | REST API implementation |
+| `app/Models`, `app/Services`, `app/Policies` | Domain models, business rules, and authorization |
+| `routes/api.php`, `routes/web.php`, `routes/console.php` | API, browser, and scheduled command routes |
+| `database/migrations`, `database/seeders` | Schema history and optional demo data |
+| `config` | Database, CORS, filesystem, auth, and application configuration |
+| `resources` | Blade, CSS, and JavaScript sources |
+| `docs/API_CONTRACT.md` | Source-aligned API contract |
+| `docs/FRONTEND_INTEGRATION.md` | Next.js/Vercel and Wasmer integration guide |
+
+## Local development
+
+Prerequisites: PHP 8.2 or later, Composer 2, Node.js 20 or later, and npm. The commands below target PowerShell.
 
 ```powershell
+git clone https://github.com/melatoninated/LMS-SMP-PAD.git
+Set-Location LMS-SMP-PAD
 composer install
 npm install
 Copy-Item .env.example .env
 php artisan key:generate
 New-Item -ItemType File -Path database/database.sqlite -Force
-php artisan migrate --seed
-npm run build
+php artisan migrate
+# Optional: load demo records
+php artisan db:seed
+php artisan storage:link
 php artisan serve
 ```
 
-Buka `http://127.0.0.1:8000`. Jalankan `npm run dev` pada terminal lain selama mengembangkan aset. Konfigurasi bawaan `.env.example` telah memakai SQLite di `database/database.sqlite`. Untuk MySQL, ubah `DB_CONNECTION=mysql` dan isi seluruh variabel `DB_*` sebelum migrasi.
+Run `npm run dev` in a second terminal during frontend-asset development, or `npm run build` for a production asset build. The checked-in `.env.example` uses SQLite. For local MySQL, set `DB_CONNECTION=mysql` and the `DB_*` variables before running migrations.
 
-## Akun data seed
+`php artisan migrate` changes only the database selected by the current environment. Do not point local commands at production unintentionally.
 
-| Peran | Username | Password awal |
-| --- | --- | --- |
-| Admin | `admin@example.com` | `AdminDev!2026` |
-| Guru | `G001` atau `G002` | `GuruDev!2026` |
-| Siswa | `0012345671` | `20120517` |
-| Siswa | `0012345673` | `20110312` |
-| Orang tua | `0012345671` | `20120517` |
+## Seed data
 
-Password awal siswa dan orang tua memakai tanggal lahir anak (`YYYYMMDD`). Semua akun seed siswa dan orang tua wajib mengganti password melalui API sebelum memakai endpoint fitur peran.
+`DatabaseSeeder` creates demo data when run, including an administrator, teachers, students, parents, courses, assessments, and profiling questions. It is separate from migrations: migrations create or evolve schema; seeding inserts application data. Seeder execution against the production database is **not verified** and should be an intentional, reviewed operation.
+
+The seed credentials exist only for a newly seeded development database. They are not evidence that those users exist in production, and they should not be used as production credentials.
 
 ## API
 
-Base URL lokal adalah `http://127.0.0.1:8000/api`. API memakai Bearer token Laravel Sanctum, bukan cookie lintas domain.
+Local base URL: `http://127.0.0.1:8000/api`.
 
-```http
-POST /api/auth/login
-Accept: application/json
-Content-Type: application/json
+Production base URL: `https://lms-smp-backend.wasmer.app/api`.
 
-{
-  "username": "G001",
-  "password": "GuruDev!2026",
-  "role": "teacher",
-  "device_name": "frontend-web",
-  "remember": true
-}
-```
+The API uses Laravel Sanctum Bearer tokens. The complete, source-aligned endpoint catalog, request fields, validation rules, response examples, uploads, and error handling are in [API_CONTRACT.md](docs/API_CONTRACT.md). The frontend-specific guide is [FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md).
 
-Gunakan `token` dari respons pada request yang terlindungi:
-
-```http
-Authorization: Bearer <token>
-Accept: application/json
-```
-
-Kontrak lengkap endpoint, peran, payload, validasi, respons, dan aturan integrasi tersedia di [docs/API_CONTRACT.md](docs/API_CONTRACT.md). Kontrak ini adalah acuan frontend; verifikasi rute dengan `php artisan route:list --path=api`.
-
-Validasi Laravel mengembalikan `422` dengan `message` dan `errors`; autentikasi/otorisasi menghasilkan `401`/`403`. Respons list dibungkus dalam `{ "data": [...] }` dan belum dipaginasi.
-
-## Unggahan
-
-Kirim materi dan jawaban file menggunakan `multipart/form-data`. Jawaban assessment memakai key `files[{questionId}]`. Batas aplikasi: gambar 5 MB, PDF 10 MB, audio 15 MB, video 50 MB; format lain ditolak. Buat storage link untuk menyajikan file secara lokal:
-
-```powershell
-php artisan storage:link
-```
-
-## Pemeriksaan
+Routes can be inspected safely with:
 
 ```powershell
 php artisan route:list --path=api
-npm run build
 ```
 
-Proyek saat ini belum memiliki suite test yang dapat dijalankan melalui `php artisan test`. Health check bawaan Laravel tersedia pada `GET /up`, bukan di bawah `/api`.
+Laravel's configured health endpoint is `GET /up` (outside `/api`). Availability of that endpoint on the deployed application is **not verified** by this repository.
 
-## Deployment dan integrasi frontend
+## Wasmer deployment
 
-Panduan Next.js/Vercel dan Wasmer ada di [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md). Pada produksi gunakan MySQL serta volume persisten untuk `storage/app/public`, simpan `APP_KEY` sebagai secret, set `APP_DEBUG=false`, dan isi `CORS_ALLOWED_ORIGINS` dengan origin frontend HTTPS tanpa path/trailing slash.
+The checked-in deployment configuration identifies:
 
-## Struktur utama
+- Application: `aureliusdavian/lms-smp-backend` (`app_id: da_R36ILtlUzxyB`)
+- Region: `fr-roub1`
+- Runtime: `php/php-64` version `8.3.2102`, running as WASIX
+- PHP server entry point: `/app/public` on `0.0.0.0:8080`
+- PHP configuration: `wasmer-config/php.ini`, supplied through `PHPRC=/config/`
+- Managed MySQL capability and persistent `lms-uploads` volume mounted at `/app/storage/app/public`
 
-- `routes/api.php` — REST API dan middleware peran.
-- `app/Http/Controllers/Api` — implementasi API.
-- `app/Services` — aturan assessment, ujian, unggahan, dan tahun ajaran.
-- `database/migrations`, `database/seeders` — skema dan data demo.
-- `resources/views` — UI Blade.
-- `docs/API_CONTRACT.md` — kontrak integrasi API.
+`app.yaml` declares the Wasmer application, managed database capability, region, scaling mode, and volume. `wasmer.toml` describes the runtime package, mounted application/config paths, and PHP command. Neither file proves a request, CORS, upload, or scheduler flow has been tested in production.
+
+See [FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md#wasmer-deployment-and-database) for safe deployment and migration guidance. GitHub automatic deployment must be treated as **not configured/not verified**: this repository contains no Git deployment configuration, and the reported OAuth connection failure is not resolved here.
+
+## Production configuration and security
+
+Set production values in Wasmer secrets/environment configuration; never commit real credentials, tokens, or `APP_KEY`.
+
+| Variable | Purpose |
+| --- | --- |
+| `APP_ENV`, `APP_DEBUG`, `APP_KEY`, `APP_URL` | Laravel environment, debug policy, encryption key, and public URL |
+| `DB_CONNECTION=mysql` | Selects the MySQL connection |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | MySQL connection values |
+| `DB_NAME` | Fallback database name only when `DB_DATABASE` is absent in this codebase |
+| `FILESYSTEM_DISK=public` | Stores application uploads on the public disk |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origins, without paths or trailing slashes |
+
+For this deployment, use `APP_URL=https://lms-smp-backend.wasmer.app`, `APP_ENV=production`, and `APP_DEBUG=false`. The actual secret values and production connectivity are outside this repository and are not documented here.
+
+## Verification status
+
+Verified from source/configuration: route definitions, Sanctum middleware usage, MySQL environment mapping, public storage path, Wasmer manifest values, and the declared persistent-volume mount.
+
+Requires deployment verification: current Wasmer release status, public API reachability, database connectivity, migrations and seed data present in production, login, CORS from the final Vercel domain, public storage link behavior, upload persistence, scheduler execution, and GitHub auto-deployment.
