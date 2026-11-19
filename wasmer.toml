@@ -1,0 +1,15 @@
+[dependencies]
+"php/php-64" = "=8.3.2102"
+
+[fs]
+"/app/" = "."
+"/config/" = "wasmer-config"
+
+[[command]]
+name = "run"
+module = "php/php-64:php"
+runner = "wasi"
+
+[command.annotations.wasi]
+main-args = ["-t", "/app/public", "-S", "0.0.0.0:8080"]
+env = ["PHPRC=/config/"]

@@ -9,8 +9,8 @@ class StudentImportTemplateExport implements FromArray
     public function array(): array
     {
         return [
-            ['nama', 'NISN', 'tanggal_lahir', 'angkatan', 'kelas', 'nama_orang_tua'],
-            ['Nama Siswa', '0012345678', '2012-05-17', 2026, '7A', 'Nama Orang Tua'],
+            ['nama', 'angkatan', 'nisn', 'tanggal_lahir'],
+            ['Nama Siswa', 2026, '0012345678', '2012-05-17'],
         ];
     }
 }

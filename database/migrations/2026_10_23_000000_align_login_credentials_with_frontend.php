@@ -26,7 +26,7 @@ return new class extends Migration
             ->orderBy('users.id')
             ->each(function (object $student): void {
                 DB::table('users')->where('id', $student->id)->update([
-                    'password' => Hash::make(Carbon::parse($student->birth_date)->format('dmY')),
+                    'password' => Hash::make(Carbon::parse($student->birth_date)->format('Ymd')),
                     'updated_at' => now(),
                 ]);
             });

@@ -14,6 +14,7 @@ class Student extends Model
         'class_room_id',
         'is_active',
         'is_graduated',
+        'is_deleted',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class Student extends Model
             'birth_date' => 'date',
             'is_active' => 'boolean',
             'is_graduated' => 'boolean',
+            'is_deleted' => 'boolean',
         ];
     }
 
@@ -43,6 +45,11 @@ class Student extends Model
     public function parents()
     {
         return $this->belongsToMany(ParentProfile::class, 'parent_student');
+    }
+
+    public function parentProfile()
+    {
+        return $this->hasOne(ParentProfile::class);
     }
 
     public function courses()

@@ -19,13 +19,42 @@ class AuthController extends Controller
             'remember' => ['nullable', 'boolean'],
             'device_name' => ['nullable', 'string', 'max:100'],
         ]);
+        return $this->authenticate($request, $data['role']);
+    }
+
+    public function studentLogin(Request $request)
+    {
+        return $this->authenticate($request, 'student');
+    }
+
+    public function parentLogin(Request $request)
+    {
+        return $this->authenticate($request, 'parent');
+    }
+
+    public function staffLogin(Request $request)
+    {
+        $data = $request->validate(['role' => ['required', 'in:admin,teacher']]);
+
+        return $this->authenticate($request, $data['role']);
+    }
+
+    private function authenticate(Request $request, string $role)
+    {
+        $data = $request->validate([
+            'username' => ['required', 'string', 'max:100'],
+            'password' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+        ]);
         $user = User::where('username', $data['username'])
-            ->where('role', $data['role'])
+            ->where('role', $role)
             ->where('is_active', true)
+            ->where('is_deleted', false)
             ->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
-            return response()->json(['message' => 'Username atau password tidak sesuai.'], 422);
+            return response()->json(['message' => 'Kredensial tidak valid'], 422);
         }
 
         $token = $user->createToken(
@@ -62,7 +91,7 @@ class AuthController extends Controller
 
     private function userData(User $user): array
     {
-        return $user->loadMissing('student.classRoom', 'teacher', 'parentProfile')->only(['id', 'name', 'username', 'email', 'role', 'must_change_password', 'is_active']) + [
+        return $user->loadMissing('student.classRoom', 'teacher', 'parentProfile.student')->only(['id', 'name', 'username', 'email', 'role', 'must_change_password', 'is_active']) + [
             'student' => $user->student,
             'teacher' => $user->teacher,
             'parent_profile' => $user->parentProfile,

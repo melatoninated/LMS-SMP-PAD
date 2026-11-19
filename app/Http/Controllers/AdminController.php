@@ -59,7 +59,7 @@ class AdminController extends Controller
             'birth_date' => ['required', 'date'], 'cohort_year' => ['required', 'integer'],
             'class_room_id' => ['nullable', 'exists:class_rooms,id'],
         ]);
-        $user = User::create(['name' => $data['name'], 'username' => $data['nisn'], 'password' => Carbon::parse($data['birth_date'])->format('dmY'), 'role' => 'student', 'must_change_password' => true]);
+        $user = User::create(['name' => $data['name'], 'username' => $data['nisn'], 'password' => Carbon::parse($data['birth_date'])->format('Ymd'), 'role' => 'student', 'must_change_password' => true]);
         Student::create([...$data, 'user_id' => $user->id]);
 
         return back()->with('status', 'Siswa berhasil ditambahkan.');
@@ -67,7 +67,7 @@ class AdminController extends Controller
 
     public function resetStudentPassword(Student $student)
     {
-        $student->user->update(['password' => $student->birth_date->format('dmY'), 'must_change_password' => true]);
+        $student->user->update(['password' => $student->birth_date->format('Ymd'), 'must_change_password' => true]);
         AuditLog::create(['user_id' => auth()->id(), 'event' => 'student_password_reset', 'entity_type' => Student::class, 'entity_id' => $student->id, 'created_at' => now()]);
 
         return back()->with('status', 'Password siswa direset ke tanggal lahir.');
@@ -133,7 +133,7 @@ class AdminController extends Controller
 
     public function importStudents(Request $request)
     {
-        $request->validate(['file' => ['required', 'file', 'mimes:xlsx']]);
+        $request->validate(['file' => ['required', 'file', 'mimes:xlsx', 'max:10240']]);
         $import = new StudentsImport;
         Excel::import($import, $request->file('file'));
 

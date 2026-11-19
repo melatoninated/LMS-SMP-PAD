@@ -33,11 +33,11 @@ Buka `http://127.0.0.1:8000`.
 | Admin | `admin@example.com` | `AdminDev!2026` |
 | Guru | `G001` | `GuruDev!2026` |
 | Guru | `G002` | `GuruDev!2026` |
-| Siswa | `0012345671` | `17052012` |
-| Siswa | `0012345673` | `12032011` |
-| Orang Tua | `ortu-0012345671` | `OrtuDev!2026` |
+| Siswa | `0012345671` | `20120517` |
+| Siswa | `0012345673` | `20110312` |
+| Orang Tua | `0012345671` | `20120517` |
 
-Password awal siswa adalah tanggal lahir dalam format `DDMMYYYY` dan disimpan menggunakan hashing Laravel. Siswa wajib mengganti password sebelum masuk dashboard. Guru login dengan NIP; admin dan orang tua menggunakan username akun masing-masing.
+Password awal siswa dan orang tua adalah tanggal lahir siswa dalam format `YYYYMMDD` dan disimpan menggunakan hashing Laravel. Siswa dan orang tua memakai NISN yang sama, tetapi masuk lewat endpoint/form yang terpisah. Semua pengguna baru wajib mengganti password sebelum masuk dashboard.
 
 ## Struktur Penting
 

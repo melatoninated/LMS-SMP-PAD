@@ -12,7 +12,7 @@ class AcademicYearService
 {
     public function active(): ?AcademicYear
     {
-        return AcademicYear::where('is_active', true)->first();
+        return AcademicYear::where('is_active', true)->where('is_deleted', false)->first();
     }
 
     public function expectedGrade(int $cohortYear, ?AcademicYear $year = null): ?int
@@ -42,10 +42,10 @@ class AcademicYearService
     public function activate(AcademicYear $academicYear): void
     {
         DB::transaction(function () use ($academicYear) {
-            AcademicYear::query()->update(['is_active' => false]);
+            AcademicYear::where('is_deleted', false)->update(['is_active' => false]);
             $academicYear->update(['is_active' => true]);
 
-            Student::query()->each(function (Student $student) use ($academicYear) {
+            Student::where('is_deleted', false)->each(function (Student $student) use ($academicYear) {
                 $grade = $this->expectedGrade($student->cohort_year, $academicYear);
                 $student->update([
                     'is_graduated' => $grade === null,
@@ -62,5 +62,12 @@ class AcademicYearService
                 'created_at' => now(),
             ]);
         });
+    }
+
+    public function studentsNeedingClassUpdate()
+    {
+        return Student::where('is_deleted', false)->get()->filter(
+            fn (Student $student) => $this->classUpdateRequired($student)
+        );
     }
 }

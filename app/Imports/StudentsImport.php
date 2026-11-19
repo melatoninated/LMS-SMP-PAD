@@ -20,6 +20,8 @@ class StudentsImport implements ToArray, WithHeadingRow
 
     public function array(array $rows): void
     {
+        $validatedRows = [];
+        $seenNisn = [];
         foreach ($rows as $index => $row) {
             $errors = [];
             if (blank($row['nama'] ?? null)) {
@@ -40,6 +42,10 @@ class StudentsImport implements ToArray, WithHeadingRow
             if (Student::where('nisn', $row['nisn'] ?? null)->exists()) {
                 $errors[] = 'NISN sudah ada';
             }
+            if (isset($seenNisn[$row['nisn'] ?? ''])) {
+                $errors[] = 'NISN duplikat di file';
+            }
+            $seenNisn[$row['nisn'] ?? ''] = true;
 
             $class = filled($row['kelas'] ?? null) ? ClassRoom::where('name', $row['kelas'])->first() : null;
             if (filled($row['kelas'] ?? null) && ! $class) {
@@ -52,15 +58,24 @@ class StudentsImport implements ToArray, WithHeadingRow
                 continue;
             }
 
-            DB::transaction(function () use ($row, $class) {
-                $user = User::create(['name' => $row['nama'], 'username' => $row['nisn'], 'password' => Carbon::parse($row['tanggal_lahir'])->format('dmY'), 'role' => 'student', 'must_change_password' => true]);
-                $student = Student::create(['user_id' => $user->id, 'nisn' => $row['nisn'], 'birth_date' => $row['tanggal_lahir'], 'cohort_year' => $row['angkatan'], 'class_room_id' => $class?->id]);
-                if (filled($row['nama_orang_tua'] ?? null)) {
-                    $parentUser = User::create(['name' => $row['nama_orang_tua'], 'username' => 'ortu-'.$row['nisn'], 'password' => Hash::make('OrtuDev!2026'), 'role' => 'parent']);
-                    ParentProfile::create(['user_id' => $parentUser->id])->students()->attach($student);
-                }
-                $this->imported++;
-            });
+            $validatedRows[] = $row + ['_class_id' => $class?->id];
         }
+
+        // Any invalid row means no account is written, as required by FR-IMP-01.
+        if ($this->failures) {
+            return;
+        }
+
+        DB::transaction(function () use ($validatedRows) {
+            foreach ($validatedRows as $row) {
+                $birthDate = Carbon::parse($row['tanggal_lahir']);
+                $user = User::create(['name' => $row['nama'], 'username' => $row['nisn'], 'password' => $birthDate->format('Ymd'), 'role' => 'student', 'must_change_password' => true]);
+                $student = Student::create(['user_id' => $user->id, 'nisn' => $row['nisn'], 'birth_date' => $birthDate, 'cohort_year' => $row['angkatan'], 'class_room_id' => $row['_class_id']]);
+                $parentUser = User::create(['name' => 'Orang Tua '.$row['nama'], 'username' => $row['nisn'], 'password' => $birthDate->format('Ymd'), 'role' => 'parent', 'must_change_password' => true]);
+                $parent = ParentProfile::create(['user_id' => $parentUser->id, 'student_id' => $student->id]);
+                $parent->students()->attach($student);
+                $this->imported++;
+            }
+        });
     }
 }

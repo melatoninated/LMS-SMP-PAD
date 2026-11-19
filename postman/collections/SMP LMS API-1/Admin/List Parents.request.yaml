@@ -1,5 +1,0 @@
-$kind: http-request
-description: Daftar orang tua dan siswa yang terhubung.
-url: "{{baseUrl}}/api/admin/parents"
-method: GET
-order: 7000

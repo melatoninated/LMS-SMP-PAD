@@ -11,7 +11,7 @@ class User extends Authenticatable
     use HasApiTokens, Notifiable;
 
     protected $fillable = [
-        'name', 'username', 'email', 'password', 'role', 'must_change_password', 'is_active',
+        'name', 'username', 'email', 'password', 'role', 'must_change_password', 'is_active', 'is_deleted',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -21,6 +21,7 @@ class User extends Authenticatable
         return [
             'must_change_password' => 'boolean',
             'is_active' => 'boolean',
+            'is_deleted' => 'boolean',
             'password' => 'hashed',
         ];
     }

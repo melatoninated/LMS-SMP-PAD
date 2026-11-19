@@ -123,10 +123,10 @@ class DatabaseSeeder extends Seeder
         foreach ($students as [$nisn, $name, $birth, $cohort, $className]) {
 
             $user = User::firstOrCreate(
-                ['username' => $nisn],
+                ['username' => $nisn, 'role' => 'student'],
                 [
                     'name' => $name,
-                    'password' => Hash::make(Carbon::parse($birth)->format('dmY')),
+                    'password' => Hash::make(Carbon::parse($birth)->format('Ymd')),
                     'role' => 'student',
                     'must_change_password' => true,
                 ]
@@ -163,10 +163,11 @@ class DatabaseSeeder extends Seeder
             // ORANG TUA
             // =========================
             $parentUser = User::firstOrCreate(
-                ['username' => 'ortu-'.$nisn],
+                ['username' => $nisn, 'role' => 'parent'],
                 [
                     'name' => 'Orang Tua '.$name,
-                    'password' => Hash::make('OrtuDev!2026'),
+                    'password' => Hash::make(Carbon::parse($birth)->format('Ymd')),
+                    'must_change_password' => true,
                     'role' => 'parent',
                 ]
             );
@@ -174,6 +175,7 @@ class DatabaseSeeder extends Seeder
             $parent = ParentProfile::firstOrCreate(
                 ['user_id' => $parentUser->id],
                 [
+                    'student_id' => $student->id,
                     'phone' => '0800000000',
                 ]
             );
@@ -246,6 +248,10 @@ class DatabaseSeeder extends Seeder
                 'section_id' => $section->id,
                 'target_grade' => 7,
                 'description' => 'Kuis singkat otomatis dan manual.',
+                'assessment_type' => 'practice',
+                'is_published' => true,
+                'duration_minutes' => 30,
+                'end_at' => now()->addYear(),
                 'passing_score' => 70,
             ]
         );
@@ -256,8 +262,11 @@ class DatabaseSeeder extends Seeder
                 'section_id' => $section->id,
                 'target_grade' => 7,
                 'description' => 'Ujian demo dengan timer server-side.',
+                'assessment_type' => 'midterm',
                 'is_exam' => true,
+                'is_published' => true,
                 'duration_minutes' => 30,
+                'end_at' => now()->addYear(),
                 'passing_score' => 75,
             ]
         );

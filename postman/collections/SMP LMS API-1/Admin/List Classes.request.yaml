@@ -1,5 +1,0 @@
-$kind: http-request
-description: Daftar kelas beserta jumlah siswanya.
-url: "{{baseUrl}}/api/admin/classes"
-method: GET
-order: 9000

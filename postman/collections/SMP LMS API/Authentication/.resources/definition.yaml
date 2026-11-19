@@ -1,3 +1,0 @@
-$kind: collection
-description: "Login bersifat publik. Request lain memerlukan header `Authorization: Bearer {{token}}`."
-order: 1000

@@ -1,0 +1,20 @@
+kind: wasmer.io/App.v0
+owner: aureliusdavian
+name: lms-smp-backend
+package: .
+
+capabilities:
+  database:
+    engine: mysql
+
+locality:
+  regions:
+    - fr-roub1
+
+scaling:
+  mode: single_concurrency
+
+volumes:
+  - name: lms-uploads
+    mount: /app/storage/app/public
+app_id: da_R36ILtlUzxyB
